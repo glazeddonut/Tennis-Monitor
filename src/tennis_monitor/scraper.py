@@ -153,8 +153,14 @@ class PlaywrightBookingClient:
                     continue
             
             if not login_clicked:
-                self.logger.warning("Could not find login link. Proceeding without login.")
-                return
+                # No login link found - check if already logged in by looking for logout link
+                logout_link = page.query_selector("span[onclick*='logud']")
+                if logout_link:
+                    self.logger.info("No login link found but logout link detected. Already logged in.")
+                    return
+                else:
+                    self.logger.warning("Could not find login link. Proceeding without login.")
+                    return
             
             # Step 2: Wait for modal to appear (look for username input in the modal)
             try:
@@ -204,6 +210,7 @@ class PlaywrightBookingClient:
             
             # Fallback: check for logged-in indicators
             logged_in_selectors = [
+                "span[onclick*='logud']",  # Halbooking logout link (Log ud)
                 "a:has-text('Log out')",
                 "a:has-text('Logout')",
                 "a#logout",
