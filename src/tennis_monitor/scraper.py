@@ -226,22 +226,32 @@ class PlaywrightBookingClient:
             try:
                 # Look for the logout link as confirmation of login
                 logout_link = page.query_selector("span[onclick*='logud']")
-                if logout_link and logout_link.is_visible():
-                    self.logger.info("Login succeeded - detected Log ud logout link")
-                    logged_in = True
-            except Exception:
-                pass
+                if logout_link:
+                    is_visible = logout_link.is_visible()
+                    self.logger.debug("Found logout link, is_visible: %s", is_visible)
+                    if is_visible:
+                        self.logger.info("Login succeeded - detected Log ud logout link")
+                        logged_in = True
+                    else:
+                        self.logger.debug("Logout link found but not visible")
+                else:
+                    self.logger.debug("No logout link found")
+            except Exception as e:
+                self.logger.debug("Error checking for logout link: %s", e)
             
             # Fallback: check if login form is hidden
             if not logged_in:
                 try:
                     username_input = page.query_selector(self.selector_login_username)
-                    if not username_input or not username_input.is_visible():
-                        self.logger.info("Login form hidden; checking for logout indicators...")
+                    if not username_input:
+                        self.logger.debug("Login form not found on page")
+                    elif not username_input.is_visible():
+                        self.logger.info("Login form hidden - login likely succeeded")
+                        logged_in = True
                     else:
                         self.logger.warning("Login form still visible - login may have failed")
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("Error checking login form visibility: %s", e)
             
             # Additional fallback: check for other logged-in indicators
             if not logged_in:
