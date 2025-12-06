@@ -208,6 +208,15 @@ class PlaywrightBookingClient:
             except PWTimeout:
                 self.logger.debug("Network idle timeout (expected in some headless setups)")
             
+            # Step 5.5: Close the login modal if it's still open (sometimes modal stays open)
+            try:
+                # Try to close modal by pressing Escape or clicking backdrop
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(500)
+                self.logger.debug("Modal close attempt (Escape key)")
+            except Exception:
+                pass
+            
             # Step 6: Add a small delay to ensure page has settled
             page.wait_for_timeout(1000)
 
