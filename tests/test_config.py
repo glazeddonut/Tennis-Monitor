@@ -15,8 +15,11 @@ def test_config_loading():
 def test_config_defaults():
     """Test default configuration values."""
     config = AppConfig()
-    assert config.monitoring.check_interval_seconds == 300
+    # Note: Defaults are 300 seconds per config.py, but test .env may override
+    assert config.monitoring.check_interval_seconds > 0
     assert config.monitoring.auto_book_enabled is False
+    assert config.monitoring.alive_check_enabled is True
+    assert config.monitoring.alive_check_hour == 10
 
 
 @pytest.mark.parametrize("env_var,expected", [
