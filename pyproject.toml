@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tennis-monitor"
+version = "0.1.0"
+description = "Tennis court booking system monitor with real-time alerts and automated booking"
+requires-python = ">=3.9"
+authors = [
+    {name = "Tennis Monitor", email = "info@tennismonitor.local"}
+]
+dependencies = [
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "aiohttp>=3.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.4.0",
+]
+
+[tool.setuptools]
+packages = ["tennis_monitor"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=tennis_monitor --cov-report=term-missing"
