@@ -159,8 +159,23 @@ class PlaywrightBookingClient:
                     self.logger.info("No login link found but logout link detected. Already logged in.")
                     return
                 else:
-                    self.logger.warning("Could not find login link. Proceeding without login.")
-                    return
+                    # Neither login nor logout link found - this is a fatal error
+                    error_msg = (
+                        "Could not find login or logout link on the page. "
+                        "Page structure may have changed or we're on the wrong page."
+                    )
+                    self.logger.error("FATAL: %s", error_msg)
+                    # Try to send alert via notification
+                    try:
+                        from .notifications import NotificationManager
+                        from .config import get_config
+                        config = get_config()
+                        notif_mgr = NotificationManager(config.notifications)
+                        notif_mgr.notify_alert("Tennis Monitor Error", error_msg)
+                    except Exception as e:
+                        self.logger.warning("Could not send error notification: %s", e)
+                    # Raise error so the caller knows something is wrong
+                    raise RuntimeError(f"FATAL: {error_msg}")
             
             # Step 2: Wait for modal to appear (look for username input in the modal)
             try:
