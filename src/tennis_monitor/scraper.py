@@ -357,11 +357,21 @@ class PlaywrightBookingClient:
                 if not baner_btn:
                     # Already logged in, look for "Banebooking" menu item
                     self.logger.info("No Book baner button found; checking for Banebooking menu item (already logged in)")
-                    banebooking_menu = page.query_selector("a.menu_ny")  # More specific: menu items have class menu_ny
                     
-                    if banebooking_menu:
-                        # Find the one with "BANEBOOKING" text
-                        menu_items = page.query_selector_all("a.menu_ny")
+                    # First, click the "Menu" dropdown to reveal menu items
+                    menu_toggle = page.query_selector("a.dropdown-toggle")
+                    if menu_toggle:
+                        self.logger.info("Found Menu dropdown toggle; clicking to reveal menu items")
+                        try:
+                            menu_toggle.click()
+                            page.wait_for_timeout(500)  # Give dropdown time to appear
+                            self.logger.debug("Menu dropdown clicked")
+                        except Exception as e:
+                            self.logger.warning("Failed to click Menu toggle: %s", e)
+                    
+                    # Now find and click the "Banebooking" menu item
+                    menu_items = page.query_selector_all("a.menu_ny")
+                    if menu_items:
                         for menu_item in menu_items:
                             text = menu_item.inner_text().strip().upper()
                             if "BANEBOOKING" in text:
@@ -373,6 +383,7 @@ class PlaywrightBookingClient:
                                     baner_btn = True  # Mark as found so we continue
                                 except Exception as e:
                                     self.logger.warning("Failed to click Banebooking menu: %s", e)
+                                break
                     else:
                         self.logger.warning("No Banebooking menu item found; trying direct navigation")
                 
