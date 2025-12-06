@@ -363,9 +363,10 @@ class PlaywrightBookingClient:
                     if menu_toggle:
                         self.logger.info("Found Menu dropdown toggle; clicking to reveal menu items")
                         try:
-                            menu_toggle.click()
-                            page.wait_for_timeout(500)  # Give dropdown time to appear
-                            self.logger.debug("Menu dropdown clicked")
+                            # Use JavaScript to click instead of Playwright's click() which waits for visibility
+                            page.evaluate("(el) => el.click()", menu_toggle)
+                            page.wait_for_timeout(1000)  # Give dropdown time to appear
+                            self.logger.debug("Menu dropdown clicked via JavaScript")
                         except Exception as e:
                             self.logger.warning("Failed to click Menu toggle: %s", e)
                     
@@ -375,17 +376,18 @@ class PlaywrightBookingClient:
                         for menu_item in menu_items:
                             text = menu_item.inner_text().strip().upper()
                             if "BANEBOOKING" in text:
-                                self.logger.info("Found Banebooking menu item; clicking it")
+                                self.logger.info("Found Banebooking menu item; clicking it via JavaScript")
                                 try:
-                                    menu_item.click()
+                                    # Use JavaScript to click to bypass visibility checks
+                                    page.evaluate("(el) => el.click()", menu_item)
                                     page.wait_for_timeout(2000)  # Give page time to load
-                                    self.logger.debug("Banebooking menu clicked successfully")
+                                    self.logger.debug("Banebooking menu clicked successfully via JavaScript")
                                     baner_btn = True  # Mark as found so we continue
                                 except Exception as e:
                                     self.logger.warning("Failed to click Banebooking menu: %s", e)
                                 break
                     else:
-                        self.logger.warning("No Banebooking menu item found; trying direct navigation")
+                        self.logger.warning("No Banebooking menu items found; trying direct navigation")
                 
                 # Try to open the Book baner UI if present (or was just clicked)
                 self.logger.info("Looking for Book baner using selector: %s", self.selector_book_baner)
