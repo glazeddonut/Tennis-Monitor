@@ -350,12 +350,15 @@ class PlaywrightBookingClient:
             # with `_parse_mdsende` to return structured availability.
             try:
                 # Check if we're already logged in (no "Book baner" button visible)
-                # In that case, we need to click the "Banebooking" menu item instead
+                # In that case, we need to invoke the "Banebooking" menu item instead
                 self.logger.info("Checking for login status...")
                 baner_btn = page.query_selector(self.selector_book_baner)
                 
-                if not baner_btn:
-                    # Already logged in, look for "Banebooking" menu item
+                if baner_btn:
+                    # Not logged in yet, "Book baner" button is visible
+                    self.logger.debug("Book baner element found; attempting navigation to: %s", f"{self.base_url}/newlook/proc_baner.asp")
+                else:
+                    # Already logged in, look for "Banebooking" menu item and invoke it
                     self.logger.info("No Book baner button found; checking for Banebooking menu item (already logged in)")
                     
                     # First, hover over the "Menu" dropdown to reveal menu items
@@ -370,7 +373,7 @@ class PlaywrightBookingClient:
                             self.logger.warning("Failed to hover Menu toggle: %s", e)
                     
                     # Now find and invoke the "Banebooking" menu item's onclick directly
-                    # Rather than trying to click it, we'll invoke the sende() function from the onclick
+                    # This will navigate to proc_baner.asp with all slots ready
                     menu_items = page.query_selector_all("li.nobr.menu_ny_li a.menu_ny")
                     if menu_items:
                         for menu_item in menu_items:
@@ -384,62 +387,33 @@ class PlaywrightBookingClient:
                                         self.logger.debug("Executing onclick: %s", onclick)
                                         page.evaluate(onclick)
                                         page.wait_for_timeout(2000)  # Give page time to load
-                                        self.logger.debug("Banebooking onclick executed successfully")
-                                        baner_btn = True  # Mark as found so we continue
+                                        self.logger.debug("Banebooking onclick executed; proc_baner.asp page should now be loaded")
                                     else:
                                         self.logger.warning("No onclick attribute found on Banebooking menu item")
                                 except Exception as e:
                                     self.logger.warning("Failed to execute Banebooking onclick: %s", e)
                                 break
                     else:
-                        self.logger.warning("No Banebooking menu items found; trying direct navigation")
+                        self.logger.warning("No Banebooking menu items found; trying direct navigation to proc_baner.asp")
+                        try:
+                            baner_url = os.getenv("PW_BANER_URL", f"{self.base_url}/newlook/proc_baner.asp")
+                            page.goto(baner_url, timeout=10000)
+                            page.wait_for_timeout(1500)
+                            self.logger.debug("Direct navigation to proc_baner.asp completed")
+                        except Exception as e:
+                            self.logger.warning("Direct navigation failed: %s", e)
                 
-                # Try to open the Book baner UI if present (or was just clicked)
-                self.logger.info("Looking for Book baner using selector: %s", self.selector_book_baner)
-                baner = page.query_selector(self.selector_book_baner)
-                
-                # Halbooking's Book baner click can hang due to JS/AJAX complexity.
-                # Try multiple approaches: (1) direct navigation, (2) click with timeout, (3) manual wait
-                baner_url = os.getenv("PW_BANER_URL", f"{self.base_url}/newlook/proc_baner.asp")
-                
-                if baner:
-                    self.logger.debug("Book baner element found; attempting navigation to: %s", baner_url)
+                # For the "Book baner" flow (when not logged in), navigate to the page
+                if baner_btn:
+                    baner_url = os.getenv("PW_BANER_URL", f"{self.base_url}/newlook/proc_baner.asp")
                     try:
-                        # Try navigating directly to the Book baner page (safest approach)
                         self.logger.info("Navigating to Book baner page: %s", baner_url)
                         page.goto(baner_url, timeout=10000)
-                        page.wait_for_timeout(1500)  # Give JS time to render slots
+                        page.wait_for_timeout(1500)
                         self.logger.debug("Book baner page loaded")
                     except Exception as e:
                         self.logger.warning(
-                            "Direct navigation to Book baner failed (%s); trying click instead",
-                            type(e).__name__,
-                        )
-                        try:
-                            # Fallback: try clicking with shorter timeout
-                            self.logger.info("Attempting to click Book baner element")
-                            baner.click()
-                            page.wait_for_timeout(2000)
-                            self.logger.debug("Click completed; page settled")
-                        except Exception as e2:
-                            self.logger.warning(
-                                "Click also failed (%s); continuing to search for slots",
-                                type(e2).__name__,
-                            )
-                else:
-                    self.logger.warning(
-                        "Book baner element not found using selector: %s. "
-                        "Trying direct navigation to: %s",
-                        self.selector_book_baner,
-                        baner_url,
-                    )
-                    try:
-                        page.goto(baner_url, timeout=10000)
-                        page.wait_for_timeout(1500)
-                        self.logger.debug("Book baner page loaded via direct navigation")
-                    except Exception as e:
-                        self.logger.warning(
-                            "Direct navigation to Book baner also failed (%s); "
+                            "Direct navigation to Book baner failed (%s); "
                             "continuing to search for slots",
                             type(e).__name__,
                         )
