@@ -358,30 +358,29 @@ class PlaywrightBookingClient:
                     # Already logged in, look for "Banebooking" menu item
                     self.logger.info("No Book baner button found; checking for Banebooking menu item (already logged in)")
                     
-                    # First, click the "Menu" dropdown to reveal menu items
+                    # First, hover over the "Menu" dropdown to reveal menu items
                     menu_toggle = page.query_selector("a.dropdown-toggle")
                     if menu_toggle:
-                        self.logger.info("Found Menu dropdown toggle; clicking to reveal menu items")
+                        self.logger.info("Found Menu dropdown toggle; hovering to reveal menu items")
                         try:
-                            # Use JavaScript to click instead of Playwright's click() which waits for visibility
-                            page.evaluate("(el) => el.click()", menu_toggle)
-                            page.wait_for_timeout(1000)  # Give dropdown time to appear
-                            self.logger.debug("Menu dropdown clicked via JavaScript")
+                            menu_toggle.hover()
+                            page.wait_for_timeout(500)  # Give dropdown time to appear
+                            self.logger.debug("Menu dropdown hovered")
                         except Exception as e:
-                            self.logger.warning("Failed to click Menu toggle: %s", e)
+                            self.logger.warning("Failed to hover Menu toggle: %s", e)
                     
                     # Now find and click the "Banebooking" menu item
-                    menu_items = page.query_selector_all("a.menu_ny")
+                    # Look for the <a> tag inside <li class="nobr menu_ny_li"> that contains "BANEBOOKING"
+                    menu_items = page.query_selector_all("li.nobr.menu_ny_li a.menu_ny")
                     if menu_items:
                         for menu_item in menu_items:
                             text = menu_item.inner_text().strip().upper()
                             if "BANEBOOKING" in text:
-                                self.logger.info("Found Banebooking menu item; clicking it via JavaScript")
+                                self.logger.info("Found Banebooking menu item; clicking it")
                                 try:
-                                    # Use JavaScript to click to bypass visibility checks
-                                    page.evaluate("(el) => el.click()", menu_item)
+                                    menu_item.click(timeout=5000)
                                     page.wait_for_timeout(2000)  # Give page time to load
-                                    self.logger.debug("Banebooking menu clicked successfully via JavaScript")
+                                    self.logger.debug("Banebooking menu clicked successfully")
                                     baner_btn = True  # Mark as found so we continue
                                 except Exception as e:
                                     self.logger.warning("Failed to click Banebooking menu: %s", e)
