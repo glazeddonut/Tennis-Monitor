@@ -227,13 +227,8 @@ class PlaywrightBookingClient:
                 # Look for the logout link as confirmation of login
                 logout_link = page.query_selector("span[onclick*='logud']")
                 if logout_link:
-                    is_visible = logout_link.is_visible()
-                    self.logger.debug("Found logout link, is_visible: %s", is_visible)
-                    if is_visible:
-                        self.logger.info("Login succeeded - detected Log ud logout link")
-                        logged_in = True
-                    else:
-                        self.logger.debug("Logout link found but not visible")
+                    self.logger.debug("Found logout link")
+                    logged_in = True
                 else:
                     self.logger.debug("No logout link found")
             except Exception as e:
@@ -244,9 +239,10 @@ class PlaywrightBookingClient:
                 try:
                     username_input = page.query_selector(self.selector_login_username)
                     if not username_input:
-                        self.logger.debug("Login form not found on page")
+                        self.logger.debug("Login form not found on page - likely logged in")
+                        logged_in = True
                     elif not username_input.is_visible():
-                        self.logger.info("Login form hidden - login likely succeeded")
+                        self.logger.info("Login form hidden - login succeeded")
                         logged_in = True
                     else:
                         self.logger.warning("Login form still visible - login may have failed")
@@ -264,7 +260,7 @@ class PlaywrightBookingClient:
                 for sel in logged_in_selectors:
                     try:
                         el = page.query_selector(sel)
-                        if el and el.is_visible():
+                        if el:
                             self.logger.info("Detected logged-in indicator: %s", sel)
                             logged_in = True
                             break
