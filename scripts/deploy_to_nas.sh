@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy the Tennis Monitor project to a remote NAS and start it with Docker Compose.
+# Deploy the Tennis Monitor project to a remote NAS from GitHub and start it with Docker Compose.
 # Usage:
 #   ./scripts/deploy_to_nas.sh USER@NAS_HOST /remote/path/to/project [options]
 #
@@ -9,9 +9,10 @@ set -euo pipefail
 #   ./scripts/deploy_to_nas.sh pi@nas.local /home/pi/tennis-monitor
 #
 # Environment variables used:
-#  RSYNC_OPTS   - Extra rsync options (optional)
 #  SKIP_BUILD   - If set, skip `docker compose build` on the NAS
 #  SSH_OPTS     - Extra ssh options (optional)
+#  GITHUB_REPO  - GitHub repository (default: glazeddonut/Tennis-Monitor)
+#  GITHUB_BRANCH - Git branch to deploy (default: main)
 
 if [ "$#" -lt 2 ]; then
   echo "Usage: $0 <user@nas> <remote_path>"
@@ -22,17 +23,14 @@ fi
 REMOTE="$1"
 REMOTE_PATH="$2"
 
-HERE=$(cd "$(dirname "$0")/.." && pwd)
-echo "Local project: $HERE"
-echo "Deploy target: $REMOTE:$REMOTE_PATH"
+# GitHub configuration
+GITHUB_REPO="${GITHUB_REPO:-glazeddonut/Tennis-Monitor}"
+GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
+GITHUB_URL="https://github.com/${GITHUB_REPO}.git"
 
-# Default rsync options
-if [ -z "${RSYNC_OPTS-}" ]; then
-  RSYNC_OPTS=( -avz --delete --progress )
-else
-  # split into array
-  read -r -a RSYNC_OPTS <<< "$RSYNC_OPTS"
-fi
+echo "GitHub repository: $GITHUB_URL"
+echo "Branch: $GITHUB_BRANCH"
+echo "Deploy target: $REMOTE:$REMOTE_PATH"
 
 if [ -z "${SSH_OPTS-}" ]; then
   SSH_OPTS=( -o StrictHostKeyChecking=accept-new )
@@ -40,33 +38,12 @@ else
   read -r -a SSH_OPTS <<< "$SSH_OPTS"
 fi
 
-RSYNC_EXCLUDES=(
-  "venv"
-  ".git"
-  "__pycache__"
-  "*.pyc"
-  "tests"
-  "*.tar"
-  "*.egg-info"
-)
+echo "Cloning/pulling project from GitHub on NAS..."
+SSH_CMD="if [ -d '$REMOTE_PATH/.git' ]; then cd '$REMOTE_PATH' && git fetch origin && git checkout $GITHUB_BRANCH && git pull origin $GITHUB_BRANCH; else git clone -b $GITHUB_BRANCH '$GITHUB_URL' '$REMOTE_PATH'; fi"
+ssh "${SSH_OPTS[@]}" "$REMOTE" "$SSH_CMD"
 
-RSYNC_EXCLUDE_ARGS=()
-for e in "${RSYNC_EXCLUDES[@]}"; do
-  RSYNC_EXCLUDE_ARGS+=(--exclude="$e")
-done
 
-echo "Syncing project to NAS..."
-rsync "${RSYNC_OPTS[@]}" "${RSYNC_EXCLUDE_ARGS[@]}" "$HERE/" "$REMOTE:$REMOTE_PATH/"
-
-echo "Copying .env (if present) to NAS and restricting permissions..."
-if [ -f "$HERE/.env" ]; then
-  scp "${SSH_OPTS[@]}" "$HERE/.env" "$REMOTE:$REMOTE_PATH/.env"
-  ssh "${SSH_OPTS[@]}" "$REMOTE" "chmod 600 '$REMOTE_PATH/.env' || true"
-else
-  echo "Warning: .env not found in project root; ensure config exists on NAS at $REMOTE_PATH/.env"
-fi
-
-echo "Running deploy commands on NAS..."
+echo "Deploying on NAS..."
 SSH_CMD="cd '$REMOTE_PATH' && docker compose pull || true"
 if [ -z "${SKIP_BUILD-}" ]; then
   SSH_CMD+=" && docker compose build"
@@ -79,3 +56,6 @@ echo "SSH -> $REMOTE: running: $SSH_CMD"
 ssh "${SSH_OPTS[@]}" "$REMOTE" "$SSH_CMD"
 
 echo "Deployment complete. Check logs with: ssh $REMOTE 'docker compose logs -f tennis-monitor'"
+echo ""
+echo "To update in the future, just run this script again:"
+echo "  ./scripts/deploy_to_nas.sh $REMOTE $REMOTE_PATH"
