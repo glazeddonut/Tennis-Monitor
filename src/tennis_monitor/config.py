@@ -45,6 +45,12 @@ class MonitoringConfig(BaseModel):
     auto_book_enabled: bool = Field(
         default_factory=lambda: os.getenv("AUTO_BOOK_ENABLED", "false").lower() == "true"
     )
+    alive_check_enabled: bool = Field(
+        default_factory=lambda: os.getenv("ALIVE_CHECK_ENABLED", "true").lower() == "true"
+    )
+    alive_check_hour: int = Field(
+        default_factory=lambda: int(os.getenv("ALIVE_CHECK_HOUR", "10"))
+    )
 
 
 class AppConfig(BaseModel):

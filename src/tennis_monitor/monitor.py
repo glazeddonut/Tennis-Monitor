@@ -6,6 +6,7 @@ import time
 import sys
 from typing import List, Dict, Optional, Set
 from datetime import datetime, date
+from apscheduler.schedulers.background import BackgroundScheduler
 from .config import AppConfig, get_config
 from .booking import BookingSystemClient, StructureValidationError
 from .notifications import NotificationManager
@@ -36,6 +37,14 @@ class TennisMonitor:
         # Track which slots we've already notified about (reset daily)
         self.notified_slots: Set[str] = set()
         self.notification_date: Optional[date] = None
+        
+        # Track monitoring stats for alive check
+        self.checks_performed_today: int = 0
+        self.slots_found_today: int = 0
+        self.last_alive_check_date: Optional[date] = None
+        
+        # Scheduler for daily alive check
+        self.scheduler: Optional[BackgroundScheduler] = None
 
     def check_availability(self) -> List[Dict]:
         """Check for available courts matching preferences.
@@ -100,7 +109,53 @@ class TennisMonitor:
         if self.notification_date != today:
             self.notification_date = today
             self.notified_slots.clear()
+            self.checks_performed_today = 0
+            self.slots_found_today = 0
             logger.info("Daily notification tracking reset (date changed to %s)", today)
+
+    def _send_alive_check(self) -> None:
+        """Send daily 'I'm alive' notification."""
+        try:
+            if self.config.monitoring.alive_check_enabled:
+                self.notification_manager.notify_alive(
+                    self.checks_performed_today,
+                    self.slots_found_today
+                )
+        except Exception:
+            logger.exception("Error sending alive check notification")
+
+    def _setup_alive_check_scheduler(self) -> None:
+        """Setup the background scheduler for daily alive checks."""
+        if not self.config.monitoring.alive_check_enabled:
+            return
+        
+        try:
+            self.scheduler = BackgroundScheduler()
+            # Schedule alive check at specified hour (default 10:00)
+            self.scheduler.add_job(
+                self._send_alive_check,
+                'cron',
+                hour=self.config.monitoring.alive_check_hour,
+                minute=0,
+                second=0
+            )
+            self.scheduler.start()
+            logger.info(
+                "Alive check scheduler started (daily at %02d:00:00)",
+                self.config.monitoring.alive_check_hour
+            )
+        except Exception:
+            logger.exception("Failed to setup alive check scheduler")
+            self.scheduler = None
+
+    def _shutdown_alive_check_scheduler(self) -> None:
+        """Shutdown the background scheduler."""
+        if self.scheduler:
+            try:
+                self.scheduler.shutdown()
+                logger.info("Alive check scheduler stopped")
+            except Exception:
+                logger.exception("Error shutting down alive check scheduler")
 
     def _get_slot_id(self, court: Dict) -> str:
         """Get a unique identifier for a court slot.
@@ -191,6 +246,8 @@ class TennisMonitor:
     def run(self) -> None:
         """Run the monitor (blocking call)."""
         self.is_running = True
+        self._setup_alive_check_scheduler()
+        
         try:
             while self.is_running:
                 try:
@@ -200,6 +257,10 @@ class TennisMonitor:
                     logger.debug("Checking availability...")
                     available = self.check_availability()
                     logger.info("Found %d courts matching preferences", len(available))
+                    
+                    # Track stats for alive check
+                    self.checks_performed_today += 1
+                    self.slots_found_today += len(available)
                     
                     if available:
                         for court in available:
@@ -239,7 +300,10 @@ class TennisMonitor:
         except Exception:
             logger.exception("Unexpected error in monitor")
             raise
+        finally:
+            self._shutdown_alive_check_scheduler()
 
     def stop(self) -> None:
         """Stop the monitor."""
         self.is_running = False
+        self._shutdown_alive_check_scheduler()

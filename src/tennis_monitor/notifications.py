@@ -76,6 +76,23 @@ class NotificationManager:
             logger.warning("Alert sent: %s", full_message)
         except Exception:
             logger.exception("Failed to send alert notification")
+    
+    def notify_alive(self, checks_performed: int, slots_found: int) -> None:
+        """Send a daily 'I'm alive' health check notification.
+        
+        Args:
+            checks_performed: Number of monitoring checks performed so far today
+            slots_found: Number of matching slots found so far today
+        """
+        from datetime import datetime
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        message = f"Tennis Monitor is alive! Checks: {checks_performed}, Slots found: {slots_found} ({now})"
+        
+        try:
+            self._send_push_notification(message, None, is_alert=False)
+            logger.info("Alive check sent: %s", message)
+        except Exception:
+            logger.exception("Failed to send alive check notification")
 
     def _format_message(self, court: Dict, status: str) -> str:
         """Format a notification message.
