@@ -369,21 +369,27 @@ class PlaywrightBookingClient:
                         except Exception as e:
                             self.logger.warning("Failed to hover Menu toggle: %s", e)
                     
-                    # Now find and click the "Banebooking" menu item
-                    # Look for the <a> tag inside <li class="nobr menu_ny_li"> that contains "BANEBOOKING"
+                    # Now find and invoke the "Banebooking" menu item's onclick directly
+                    # Rather than trying to click it, we'll invoke the sende() function from the onclick
                     menu_items = page.query_selector_all("li.nobr.menu_ny_li a.menu_ny")
                     if menu_items:
                         for menu_item in menu_items:
                             text = menu_item.inner_text().strip().upper()
                             if "BANEBOOKING" in text:
-                                self.logger.info("Found Banebooking menu item; clicking it")
+                                self.logger.info("Found Banebooking menu item; invoking onclick handler")
                                 try:
-                                    menu_item.click(timeout=5000)
-                                    page.wait_for_timeout(2000)  # Give page time to load
-                                    self.logger.debug("Banebooking menu clicked successfully")
-                                    baner_btn = True  # Mark as found so we continue
+                                    # Get the onclick attribute and execute it directly via JavaScript
+                                    onclick = menu_item.get_attribute("onclick") or ""
+                                    if onclick:
+                                        self.logger.debug("Executing onclick: %s", onclick)
+                                        page.evaluate(onclick)
+                                        page.wait_for_timeout(2000)  # Give page time to load
+                                        self.logger.debug("Banebooking onclick executed successfully")
+                                        baner_btn = True  # Mark as found so we continue
+                                    else:
+                                        self.logger.warning("No onclick attribute found on Banebooking menu item")
                                 except Exception as e:
-                                    self.logger.warning("Failed to click Banebooking menu: %s", e)
+                                    self.logger.warning("Failed to execute Banebooking onclick: %s", e)
                                 break
                     else:
                         self.logger.warning("No Banebooking menu items found; trying direct navigation")
