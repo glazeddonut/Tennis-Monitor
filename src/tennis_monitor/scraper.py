@@ -221,43 +221,50 @@ class PlaywrightBookingClient:
             page.wait_for_timeout(1000)
 
             # Step 7: Detect login success (works in headless and headful modes)
-            # Strategy: check if we can still see the login form. If it's gone (or hidden),
-            # login succeeded. Otherwise, check for logout indicators.
+            # Strategy: Look for the "Log ud" (logout) link to confirm login succeeded
+            logged_in = False
             try:
-                # Try to find the username input; if it's gone/hidden, we're logged in
-                username_input = page.query_selector(self.selector_login_username)
-                if not username_input or not username_input.is_visible():
-                    self.logger.info("Login form hidden; login likely succeeded")
-                    return
+                # Look for the logout link as confirmation of login
+                logout_link = page.query_selector("span[onclick*='logud']")
+                if logout_link and logout_link.is_visible():
+                    self.logger.info("Login succeeded - detected Log ud logout link")
+                    logged_in = True
             except Exception:
                 pass
             
-            # Fallback: check for logged-in indicators
-            logged_in_selectors = [
-                "span[onclick*='logud']",  # Halbooking logout link (Log ud)
-                "a:has-text('Log out')",
-                "a:has-text('Logout')",
-                "a#logout",
-                "button:has-text('Logout')",
-            ]
-            found = False
-            for sel in logged_in_selectors:
+            # Fallback: check if login form is hidden
+            if not logged_in:
                 try:
-                    el = page.query_selector(sel)
-                    if el and el.is_visible():
-                        self.logger.info("Detected logged-in indicator: %s", sel)
-                        found = True
-                        break
+                    username_input = page.query_selector(self.selector_login_username)
+                    if not username_input or not username_input.is_visible():
+                        self.logger.info("Login form hidden; checking for logout indicators...")
+                    else:
+                        self.logger.warning("Login form still visible - login may have failed")
                 except Exception:
-                    continue
-
-            if found:
-                self.logger.info("Login succeeded")
+                    pass
+            
+            # Additional fallback: check for other logged-in indicators
+            if not logged_in:
+                logged_in_selectors = [
+                    "a:has-text('Log out')",
+                    "a:has-text('Logout')",
+                    "a#logout",
+                    "button:has-text('Logout')",
+                ]
+                for sel in logged_in_selectors:
+                    try:
+                        el = page.query_selector(sel)
+                        if el and el.is_visible():
+                            self.logger.info("Detected logged-in indicator: %s", sel)
+                            logged_in = True
+                            break
+                    except Exception:
+                        continue
+            
+            if logged_in:
+                self.logger.info("Login confirmed successful")
             else:
-                self.logger.info(
-                    "Login attempted; could not confirm success but proceeding anyway "
-                    "(works in headless mode)"
-                )
+                self.logger.warning("Could not confirm login success, but proceeding anyway (works in headless mode)")
             
         except Exception:
             self.logger.exception("Login error")
