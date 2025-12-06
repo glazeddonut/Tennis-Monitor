@@ -343,12 +343,40 @@ class PlaywrightBookingClient:
 
             # Attempt login if necessary
             self.login(page)
+            
             # First try Halbooking-specific flow: click the "Book baner"
             # and collect `span.banefelt.btn_ledig` elements that contain
             # an `onclick="mdsende(...)"` payload. Parse those payloads
             # with `_parse_mdsende` to return structured availability.
             try:
-                # Try to open the Book baner UI if present
+                # Check if we're already logged in (no "Book baner" button visible)
+                # In that case, we need to click the "Banebooking" menu item instead
+                self.logger.info("Checking for login status...")
+                baner_btn = page.query_selector(self.selector_book_baner)
+                
+                if not baner_btn:
+                    # Already logged in, look for "Banebooking" menu item
+                    self.logger.info("No Book baner button found; checking for Banebooking menu item (already logged in)")
+                    banebooking_menu = page.query_selector("a.menu_ny")  # More specific: menu items have class menu_ny
+                    
+                    if banebooking_menu:
+                        # Find the one with "BANEBOOKING" text
+                        menu_items = page.query_selector_all("a.menu_ny")
+                        for menu_item in menu_items:
+                            text = menu_item.inner_text().strip().upper()
+                            if "BANEBOOKING" in text:
+                                self.logger.info("Found Banebooking menu item; clicking it")
+                                try:
+                                    menu_item.click()
+                                    page.wait_for_timeout(2000)  # Give page time to load
+                                    self.logger.debug("Banebooking menu clicked successfully")
+                                    baner_btn = True  # Mark as found so we continue
+                                except Exception as e:
+                                    self.logger.warning("Failed to click Banebooking menu: %s", e)
+                    else:
+                        self.logger.warning("No Banebooking menu item found; trying direct navigation")
+                
+                # Try to open the Book baner UI if present (or was just clicked)
                 self.logger.info("Looking for Book baner using selector: %s", self.selector_book_baner)
                 baner = page.query_selector(self.selector_book_baner)
                 
