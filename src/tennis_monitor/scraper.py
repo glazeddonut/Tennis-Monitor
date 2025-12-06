@@ -242,8 +242,19 @@ class PlaywrightBookingClient:
                         self.logger.debug("Login form not found on page - likely logged in")
                         logged_in = True
                     elif not username_input.is_visible():
-                        self.logger.info("Login form hidden - login succeeded")
-                        logged_in = True
+                        self.logger.info("Login form hidden - login likely succeeded")
+                        # Wait a moment for page to fully load, then recheck for logout link
+                        page.wait_for_timeout(1000)
+                        try:
+                            logout_link_recheck = page.query_selector("span[onclick*='logud']")
+                            if logout_link_recheck:
+                                self.logger.debug("Found logout link on recheck - confirming login")
+                                logged_in = True
+                            else:
+                                self.logger.debug("Logout link still not found after recheck")
+                                logged_in = True  # Assume logged in if form is hidden
+                        except Exception:
+                            logged_in = True  # Assume logged in if form is hidden
                     else:
                         self.logger.warning("Login form still visible - login may have failed")
                 except Exception as e:
