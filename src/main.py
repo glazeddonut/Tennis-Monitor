@@ -3,8 +3,27 @@
 import sys
 import os
 import logging
+import time
+from datetime import datetime, timezone
 from tennis_monitor import TennisMonitor
 from tennis_monitor.config import get_config
+
+
+class LocalTimeFormatter(logging.Formatter):
+    """Custom formatter that converts UTC timestamps to local time."""
+    
+    converter = time.localtime
+    
+    def formatTime(self, record, datefmt=None):
+        """Convert record timestamp to local time."""
+        ct = self.converter(record.created)
+        if datefmt:
+            s = time.strftime(datefmt, ct)
+        else:
+            t = time.strftime(self.default_time_format, ct)
+            s = self.default_msec_format % (t, record.msecs)
+        return s
+
 
 # Read LOG_LEVEL from environment (defaults to INFO for standard runs)
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -21,8 +40,8 @@ os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "tennis_monitor.log")
 log_format = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 
-# Create formatters and handlers
-formatter = logging.Formatter(log_format)
+# Create formatters and handlers with local time
+formatter = LocalTimeFormatter(log_format)
 
 # Console handler (stdout)
 console_handler = logging.StreamHandler(sys.stdout)
