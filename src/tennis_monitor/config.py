@@ -5,7 +5,9 @@ from typing import List, Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-load_dotenv()
+# Store .env file path for later updates
+ENV_FILE = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+load_dotenv(ENV_FILE)
 
 
 class BookingSystemConfig(BaseModel):
@@ -69,6 +71,57 @@ class AppConfig(BaseModel):
             notifications=NotificationConfig(),
             monitoring=MonitoringConfig(),
         )
+
+
+def update_env_file(updates: dict[str, str]) -> bool:
+    """Update environment variables in .env file.
+    
+    Args:
+        updates: Dictionary of environment variable names and values to update
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    if not os.path.exists(ENV_FILE):
+        return False
+    
+    try:
+        # Read existing .env file
+        with open(ENV_FILE, "r") as f:
+            lines = f.readlines()
+        
+        # Create a dictionary to track which keys were updated
+        updated_keys = set()
+        new_lines = []
+        
+        # Update existing lines
+        for line in lines:
+            key = line.split("=")[0].strip() if "=" in line else ""
+            
+            if key in updates:
+                # Update this line
+                new_lines.append(f"{key}={updates[key]}\n")
+                updated_keys.add(key)
+            else:
+                # Keep original line
+                new_lines.append(line)
+        
+        # Add any new keys that weren't in the file
+        for key, value in updates.items():
+            if key not in updated_keys:
+                new_lines.append(f"{key}={value}\n")
+        
+        # Write back to .env file
+        with open(ENV_FILE, "w") as f:
+            f.writelines(new_lines)
+        
+        # Reload environment
+        load_dotenv(ENV_FILE, override=True)
+        
+        return True
+    except Exception as e:
+        print(f"Error updating .env file: {e}")
+        return False
 
 
 def get_config() -> AppConfig:

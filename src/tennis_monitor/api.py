@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from .monitor import TennisMonitor
-from .config import AppConfig
+from .config import AppConfig, update_env_file
 
 
 logger = logging.getLogger(__name__)
@@ -136,17 +136,30 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
         Returns:
             Updated configuration
         """
+        # Build updates dictionary for .env file
+        updates = {}
+        
         if preferences.preferred_courts:
             config.user_preferences.preferred_courts = preferences.preferred_courts
+            updates["PREFERRED_COURTS"] = ",".join(preferences.preferred_courts)
         
         if preferences.preferred_time_slots:
             config.user_preferences.preferred_time_slots = preferences.preferred_time_slots
+            updates["PREFERRED_TIME_SLOTS"] = ",".join(preferences.preferred_time_slots)
         
         if preferences.check_interval_seconds:
             config.monitoring.check_interval_seconds = preferences.check_interval_seconds
+            updates["CHECK_INTERVAL_SECONDS"] = str(preferences.check_interval_seconds)
         
         if preferences.alive_check_hour is not None:
             config.monitoring.alive_check_hour = preferences.alive_check_hour
+            updates["ALIVE_CHECK_HOUR"] = str(preferences.alive_check_hour)
+        
+        # Write to .env file
+        if updates:
+            success = update_env_file(updates)
+            if not success:
+                logger.warning("Failed to update .env file, but config updated in memory")
         
         logger.info("Configuration updated via API")
         
