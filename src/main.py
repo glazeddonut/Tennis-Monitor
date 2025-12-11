@@ -87,8 +87,10 @@ def main() -> int:
 
         monitor.run()
         return 0
-    except Exception:
+    except Exception as e:
         logger.exception("Unhandled error running Tennis Monitor")
+        import traceback
+        traceback.print_exc()
         return 1
 
 
