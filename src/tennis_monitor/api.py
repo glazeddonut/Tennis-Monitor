@@ -405,7 +405,11 @@ def _get_dashboard_html() -> str:
             <div id="message" class="message"></div>
             <div class="pref-group">
                 <label>API Key:</label>
-                <input type="password" id="api-key" placeholder="Enter API Key" style="margin-bottom: 20px;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="password" id="api-key" placeholder="Enter API Key" style="flex: 1;">
+                    <button class="btn-primary" onclick="clearApiKey(); document.getElementById('api-key').value=''; showMessage('API Key cleared', 'success');" style="width: auto; flex: 0;">Clear</button>
+                </div>
+                <small style="color: #999; display: block; margin-top: 5px;">Saved in browser - won't be sent to server</small>
             </div>
             <div class="pref-group">
                 <label for="courts">Preferred Courts</label>
@@ -430,6 +434,21 @@ def _get_dashboard_html() -> str:
     </div>
     
     <script>
+        // API Key storage management
+        const API_KEY_STORAGE = "tennis-monitor-api-key";
+        
+        function saveApiKey(key) {
+            localStorage.setItem(API_KEY_STORAGE, key);
+        }
+        
+        function loadApiKey() {
+            return localStorage.getItem(API_KEY_STORAGE) || "";
+        }
+        
+        function clearApiKey() {
+            localStorage.removeItem(API_KEY_STORAGE);
+        }
+        
         function showMessage(msg, type = "success") {
             const msgDiv = document.getElementById("message");
             msgDiv.textContent = msg;
@@ -459,6 +478,22 @@ def _get_dashboard_html() -> str:
                 return null;
             }
         }
+        
+        // Save API key when it changes
+        document.getElementById("api-key").addEventListener("change", function() {
+            if (this.value) {
+                saveApiKey(this.value);
+                showMessage("API Key saved to browser", "success");
+            }
+        });
+        
+        // Load saved API key on page load
+        window.addEventListener("load", function() {
+            const savedKey = loadApiKey();
+            if (savedKey) {
+                document.getElementById("api-key").value = savedKey;
+            }
+        });
         
         async function loadStatus() {
             const data = await apiCall("/api/status");
