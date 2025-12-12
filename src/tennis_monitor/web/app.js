@@ -97,9 +97,17 @@ class TennisMonitorApp {
   }
 
   async loadLogs() {
-    const data = await this.apiCall('/api/monitor/logs');
-    if (data) {
-      this.updateLogsDisplay(data);
+    try {
+      const data = await this.apiCall('/api/monitor/logs');
+      console.log('[LOGS] API Response:', data);
+      if (data) {
+        console.log('[LOGS] About to update display with', data.logs?.length || 'unknown', 'logs');
+        this.updateLogsDisplay(data);
+      } else {
+        console.warn('[LOGS] No data returned from API');
+      }
+    } catch (error) {
+      console.error('[LOGS] Error loading logs:', error);
     }
   }
 
@@ -205,6 +213,7 @@ class TennisMonitorApp {
 
   updateLogsDisplay(data) {
     const logsList = document.getElementById('logs-list');
+    console.log('[LOGS] updateLogsDisplay called, logsList element:', logsList);
     logsList.innerHTML = '';
 
     // Handle both array of strings and object with logs array
@@ -214,14 +223,21 @@ class TennisMonitorApp {
     } else if (data && data.logs) {
       logs = data.logs;
     }
+    
+    console.log('[LOGS] Parsed logs array:', logs);
 
     if (!logs || logs.length === 0) {
+      console.warn('[LOGS] No logs to display');
       logsList.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px;">No logs available</div>';
       return;
     }
 
-    logs.slice(0, 50).forEach((logLine) => {
-      if (!logLine) return; // Skip empty lines
+    console.log('[LOGS] Processing', Math.min(logs.length, 50), 'log lines');
+    logs.slice(0, 50).forEach((logLine, index) => {
+      if (!logLine) {
+        console.log('[LOGS] Skipping empty line at index', index);
+        return;
+      }
       
       const logItem = document.createElement('div');
       logItem.className = 'log-item';
@@ -243,6 +259,10 @@ class TennisMonitorApp {
         message = cleanLine.substring(index + levelMatch[1].length).trim();
       }
       
+      if (index < 3) {
+        console.log('[LOGS] Line', index, '- timestamp:', timestamp, 'level:', level, 'message:', message.substring(0, 50));
+      }
+      
       logItem.innerHTML = `
         <span class="log-time">${this.escapeHtml(timestamp)}</span>
         <span class="log-level log-${level.toLowerCase()}">${level}</span>
@@ -250,6 +270,7 @@ class TennisMonitorApp {
       `;
       logsList.appendChild(logItem);
     });
+    console.log('[LOGS] Display update complete');
   }
 
   // Event Listeners
