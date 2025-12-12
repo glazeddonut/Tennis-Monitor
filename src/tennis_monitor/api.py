@@ -5,7 +5,8 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends, Header
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from .monitor import TennisMonitor
 from .config import AppConfig, update_env_file
@@ -70,6 +71,11 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
         description="REST API for Tennis Court Monitoring",
         version="1.0.0"
     )
+    
+    # Mount PWA static files
+    web_dir = os.path.join(os.path.dirname(__file__), "web")
+    if os.path.exists(web_dir):
+        app.mount("/pwa", StaticFiles(directory=web_dir, html=True), name="pwa")
     
     api_key = APIKey()
     
@@ -237,14 +243,14 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
     
     @app.get("/", response_class=HTMLResponse, tags=["Web UI"])
     async def root():
-        """Redirect to dashboard."""
+        """Redirect to PWA."""
         return """
         <html>
             <head>
-                <meta http-equiv="refresh" content="0; url=/dashboard" />
+                <meta http-equiv="refresh" content="0; url=/pwa" />
             </head>
             <body>
-                Redirecting to dashboard...
+                Redirecting to Tennis Monitor PWA...
             </body>
         </html>
         """

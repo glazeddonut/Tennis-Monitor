@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Tennis Monitor - Real-time court availability monitoring">
+  <meta name="theme-color" content="#1f2937">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tennis Monitor">
+  
+  <title>Tennis Monitor - Court Availability</title>
+  
+  <link rel="manifest" href="/pwa/manifest.json">
+  <link rel="stylesheet" href="/pwa/styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='50%' font-size='80' text-anchor='middle' dominant-baseline='middle'>🎾</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231f2937' width='192' height='192' rx='44'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='%23fff' text-anchor='middle' dominant-baseline='middle'>🎾</text></svg>">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <span class="header-emoji">🎾</span>
+      <h1>Tennis Monitor</h1>
+    </div>
+
+    <!-- Status Tab Content -->
+    <div id="tab-status" class="tab-content active">
+      <div class="status-container">
+        <div class="status-display">
+          <div class="status-icon" id="status-icon">🔴</div>
+          <div class="status-info">
+            <div class="status-text" id="status-text">STOPPED</div>
+            <div class="status-time" id="last-check">Never checked</div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Checks Today</div>
+            <div class="stat-value" id="checks-text">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Slots Found</div>
+            <div class="stat-value" id="slots-text">0</div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button id="start-btn" class="primary-btn">▶️ Start</button>
+          <button id="stop-btn" class="primary-btn">⏹️ Stop</button>
+        </div>
+      </div>
+
+      <div class="status-container">
+        <div class="checkbox-group">
+          <input type="checkbox" id="auto-refresh" checked>
+          <label for="auto-refresh">Auto-refresh every 5 seconds</label>
+        </div>
+        <button id="refresh-status-btn" class="secondary-btn">🔄 Refresh Now</button>
+      </div>
+    </div>
+
+    <!-- Preferences Tab Content -->
+    <div id="tab-preferences" class="tab-content">
+      <div class="form-group">
+        <label for="courts-input">Preferred Courts</label>
+        <input type="text" id="courts-input" placeholder="Court11,Court12">
+        <small style="color: #6b7280; margin-top: 4px; display: block;">Comma-separated court names</small>
+      </div>
+
+      <div class="form-group">
+        <label for="times-input">Preferred Time Slots</label>
+        <input type="text" id="times-input" placeholder="18:00,19:00,20:00">
+        <small style="color: #6b7280; margin-top: 4px; display: block;">Comma-separated times (HH:MM format)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="interval-input">Check Interval (seconds)</label>
+        <input type="number" id="interval-input" value="30" min="10" max="3600">
+        <small style="color: #6b7280; margin-top: 4px; display: block;">How often to check for availability</small>
+      </div>
+
+      <button id="update-prefs-btn" class="primary-btn">💾 Save Preferences</button>
+    </div>
+
+    <!-- Logs Tab Content -->
+    <div id="tab-logs" class="tab-content">
+      <div style="margin-bottom: 12px;">
+        <button id="refresh-logs-btn" class="secondary-btn">🔄 Refresh Logs</button>
+      </div>
+      <div class="logs-list" id="logs-list">
+        <div style="color: #9ca3af; text-align: center; padding: 20px;">
+          Loading logs...
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab Content -->
+    <div id="tab-settings" class="tab-content">
+      <div class="form-group">
+        <label for="api-key-input">API Key</label>
+        <input type="text" id="api-key-input" placeholder="Enter your API key">
+        <small style="color: #6b7280; margin-top: 4px; display: block;">
+          Found in your Tennis Monitor server configuration
+        </small>
+      </div>
+
+      <button id="save-api-key-btn" class="primary-btn">🔐 Save API Key</button>
+
+      <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+        <h3 style="margin-bottom: 8px; font-size: 14px;">About This App</h3>
+        <p style="font-size: 13px; color: #6b7280; line-height: 1.6;">
+          Tennis Monitor PWA provides real-time monitoring of tennis court availability.
+          <br><br>
+          <strong>Version:</strong> 1.0<br>
+          <strong>Server:</strong> <span id="server-info">Connecting...</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Tab Buttons -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="status">📊 Status</button>
+      <button class="tab-btn" data-tab="preferences">⚙️ Preferences</button>
+      <button class="tab-btn" data-tab="logs">📋 Logs</button>
+      <button class="tab-btn" data-tab="settings">🔐 Settings</button>
+    </div>
+  </div>
+
+  <script src="/pwa/app.js"></script>
+</body>
+</html>
