@@ -317,7 +317,7 @@ class TennisMonitorApp {
   async bookSlot(courtName, timeSlot, btnElement) {
     try {
       btnElement.disabled = true;
-      btnElement.textContent = '⏳ Booking...';
+      btnElement.textContent = '⏳ Queuing...';
 
       const result = await this.apiCall('/api/monitor/book', {
         method: 'POST',
@@ -328,21 +328,21 @@ class TennisMonitorApp {
       });
 
       if (result && result.success) {
-        btnElement.textContent = '✓ Booked!';
-        btnElement.style.backgroundColor = '#10b981';
-        this.showSuccess(`Booked ${courtName} at ${timeSlot}`);
+        btnElement.textContent = '📋 Queued';
+        btnElement.style.backgroundColor = '#8b5cf6';
+        this.showSuccess(`${courtName} @ ${timeSlot} queued - will book on next check!`);
       } else {
         btnElement.textContent = '✗ Failed';
         btnElement.style.backgroundColor = '#ef4444';
-        this.showError(result?.message || 'Booking failed');
+        this.showError(result?.message || 'Queueing failed');
       }
 
-      // Reset button after 3 seconds
+      // Reset button after 4 seconds
       setTimeout(() => {
         btnElement.disabled = false;
         btnElement.textContent = `${courtName} @ ${timeSlot}`;
         btnElement.style.backgroundColor = '';
-      }, 3000);
+      }, 4000);
     } catch (error) {
       console.error('[BOOKING] Error:', error);
       btnElement.disabled = false;

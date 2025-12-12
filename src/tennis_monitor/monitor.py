@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 import sys
+from collections import deque
 from typing import List, Dict, Optional, Set
 from datetime import datetime, date
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -45,6 +46,9 @@ class TennisMonitor:
         
         # Store last found slots for PWA to display booking buttons
         self.last_found_slots: List[Dict] = []
+        
+        # Queue for pending bookings (user-requested via API)
+        self.pending_bookings: deque = deque()
         
         # Scheduler for daily alive check
         self.scheduler: Optional[BackgroundScheduler] = None
@@ -188,6 +192,40 @@ class TennisMonitor:
         self.notified_slots.add(slot_id)
         return True
 
+    def process_pending_bookings(self) -> None:
+        """Process any pending booking requests from the API.
+        
+        This runs during the monitoring loop, so the monitor thread
+        (which owns the browser) can safely execute bookings.
+        """
+        while self.pending_bookings:
+            booking_request = self.pending_bookings.popleft()
+            court_name = booking_request.get("court_name")
+            time_slot = booking_request.get("time_slot")
+            
+            logger.info("Processing pending booking: %s at %s", court_name, time_slot)
+            
+            try:
+                success = self.booking_client.book_court(court_name, time_slot)
+                
+                if success:
+                    logger.info("Successfully booked %s at %s", court_name, time_slot)
+                    self.notification_manager.notify_booked({
+                        "name": court_name,
+                        "time_slot": time_slot
+                    })
+                else:
+                    logger.warning("Failed to book %s at %s", court_name, time_slot)
+                    self.notification_manager.notify_alert(
+                        "Booking Failed",
+                        f"Could not book {court_name} at {time_slot}"
+                    )
+            except Exception as e:
+                logger.exception("Error processing booking request: %s", e)
+                self.notification_manager.notify_alert(
+                    "Booking Error",
+                    f"Error booking {court_name}: {str(e)}"
+                )
 
     def attempt_booking(self, court: Dict) -> bool:
         """Attempt to book a court if auto-booking is enabled.
@@ -254,6 +292,11 @@ class TennisMonitor:
         try:
             while self.is_running:
                 try:
+                    # Process any pending booking requests from the API (queue-based)
+                    if self.pending_bookings:
+                        logger.debug("Processing %d pending booking requests", len(self.pending_bookings))
+                        self.process_pending_bookings()
+                    
                     # Reset daily notification tracking if needed
                     self._reset_daily_notification_tracking()
                     

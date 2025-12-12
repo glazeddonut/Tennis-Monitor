@@ -218,35 +218,32 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
     
     @app.post("/api/monitor/book", tags=["Booking"], response_model=BookingResponse)
     async def book_court(request: BookingRequest, token: str = Depends(api_key)):
-        """Book a specific court and time slot.
+        """Queue a booking request to be processed by the monitor thread.
+        
+        The booking is queued and will be processed during the next monitor cycle.
+        This ensures thread safety by letting the monitor thread (which owns the
+        Playwright browser) execute the actual booking.
         
         Args:
             request: Booking request with court_name and time_slot
             
         Returns:
-            Booking result with success status and message
+            Response indicating the booking was queued
         """
         try:
-            logger.info("Booking request: %s at %s", request.court_name, request.time_slot)
+            logger.info("Queueing booking request: %s at %s", request.court_name, request.time_slot)
             
-            # Attempt booking via booking client
-            success = monitor.booking_client.book_court(request.court_name, request.time_slot)
+            # Queue the booking for processing by the monitor thread
+            monitor.pending_bookings.append({
+                "court_name": request.court_name,
+                "time_slot": request.time_slot
+            })
             
-            if success:
-                message = f"Successfully booked {request.court_name} at {request.time_slot}"
-                logger.info(message)
-                # Send notification about successful booking
-                monitor.notification_manager.notify_booked({
-                    "name": request.court_name,
-                    "time_slot": request.time_slot
-                })
-                return BookingResponse(success=True, message=message)
-            else:
-                message = f"Failed to book {request.court_name} at {request.time_slot}"
-                logger.warning(message)
-                return BookingResponse(success=False, message=message)
+            message = f"Booking queued for {request.court_name} at {request.time_slot} - will be processed next check"
+            logger.info(message)
+            return BookingResponse(success=True, message=message)
         except Exception as e:
-            message = f"Booking error: {str(e)}"
+            message = f"Error queueing booking: {str(e)}"
             logger.exception(message)
             return BookingResponse(success=False, message=message)
     
