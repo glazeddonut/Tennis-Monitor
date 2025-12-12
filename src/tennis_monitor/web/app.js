@@ -207,15 +207,56 @@ class TennisMonitorApp {
     const logsList = document.getElementById('logs-list');
     logsList.innerHTML = '';
 
-    const logs = Array.isArray(data) ? data : data.logs || [];
-    logs.slice(0, 50).forEach((log) => {
+    // Handle both array of strings and object with logs array
+    let logs = [];
+    if (Array.isArray(data)) {
+      logs = data;
+    } else if (data && data.logs) {
+      logs = data.logs;
+    }
+
+    if (logs.length === 0) {
+      logsList.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px;">No logs available</div>';
+      return;
+    }
+
+    logs.slice(0, 50).forEach((logLine) => {
       const logItem = document.createElement('div');
       logItem.className = 'log-item';
-      logItem.innerHTML = `
-        <span class="log-time">${new Date(log.timestamp).toLocaleTimeString()}</span>
-        <span class="log-level log-${log.level.toLowerCase()}">${log.level}</span>
-        <span class="log-message">${this.escapeHtml(log.message)}</span>
-      `;
+      
+      // Parse log line if it's a string
+      let logHtml = '';
+      if (typeof logLine === 'string') {
+        // Extract timestamp if present (format: "YYYY-MM-DD HH:MM:SS,mmm")
+        const timestampMatch = logLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+        const timestamp = timestampMatch ? timestampMatch[1] : '';
+        
+        // Extract log level
+        const levelMatch = logLine.match(/(DEBUG|INFO|WARNING|ERROR|CRITICAL)/);
+        const level = levelMatch ? levelMatch[1] : 'INFO';
+        
+        // Get the message (everything after the level indicator)
+        const message = logLine.replace(/^.*?(DEBUG|INFO|WARNING|ERROR|CRITICAL):/, '').trim();
+        
+        logHtml = `
+          <span class="log-time">${timestamp}</span>
+          <span class="log-level log-${level.toLowerCase()}">${level}</span>
+          <span class="log-message">${this.escapeHtml(message)}</span>
+        `;
+      } else if (typeof logLine === 'object') {
+        // Handle structured log objects
+        const timestamp = logLine.timestamp ? new Date(logLine.timestamp).toLocaleTimeString() : '';
+        const level = logLine.level || 'INFO';
+        const message = logLine.message || JSON.stringify(logLine);
+        
+        logHtml = `
+          <span class="log-time">${timestamp}</span>
+          <span class="log-level log-${level.toLowerCase()}">${level}</span>
+          <span class="log-message">${this.escapeHtml(message)}</span>
+        `;
+      }
+      
+      logItem.innerHTML = logHtml;
       logsList.appendChild(logItem);
     });
   }
