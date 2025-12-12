@@ -602,86 +602,176 @@ class PlaywrightBookingClient:
             pass  # Don't close page; keep it persistent for next check
 
     def book_court(self, court_id: str, time_slot: str) -> bool:
-        """Attempt to book a court for Halbooking systems.
+        """Execute complete Halbooking booking flow (5 steps).
         
-        For Halbooking, we find the available slot button matching the court and time,
-        then click it to trigger the booking flow via the onclick handler.
-
+        Step 1: Click available slot → Navigate to "Opret booking" page
+        Step 2: Select co-player (Aksel Mahler Tolborg) → Click "Vælg"
+        Step 3: Add to cart → Click "Læg i kurv"
+        Step 4: Accept terms → Check "Jeg har læst og accepterer betingelserne"
+        Step 5: Confirm booking → Click "Bekræft booking"
+        
         Args:
-            court_id: Court identifier (e.g., "Court11" or court number like "9")
+            court_id: Court ID or name (e.g., "9" or "Court11")
             time_slot: Time slot in HH:MM-HH:MM format (e.g., "20:00-21:00")
             
         Returns:
-            True if booking appears successful, False otherwise
+            True if booking completed successfully, False otherwise
         """
         self._ensure_browser()
+        page = self.page
+        co_player_name = os.getenv("BOOKING_CO_PLAYER", "Aksel Mahler Tolborg")
+        
         try:
-            page = self.page
-            
-            # Navigate to the booking page if not already there
+            # Ensure we're on the booking page
             if "proc_baner.asp" not in page.url:
                 page.goto(self.base_url, timeout=15000)
                 self.login(page)
-                # Navigate to Book baner page
-                book_baner_btn = page.query_selector(self.selector_book_baner)
-                if book_baner_btn:
-                    book_baner_btn.click()
-                else:
-                    # Try the menu-based approach
-                    menu_toggle = page.query_selector("button[data-toggle='collapse']")
-                    if menu_toggle:
-                        menu_toggle.hover()
-                        page.wait_for_timeout(500)
-                        menu_items = page.query_selector_all("a[href*='proc_baner']")
-                        if menu_items:
-                            menu_items[0].click()
-                
-                page.wait_for_load_state("networkidle", timeout=5000)
+                # Navigate to Book baner
+                book_baner = page.query_selector(self.selector_book_baner)
+                if book_baner:
+                    book_baner.click()
+                    page.wait_for_load_state("networkidle", timeout=5000)
             
-            # Find all available slot elements
+            # STEP 1: Find and click the available slot matching our court + time
+            self.logger.info("STEP 1: Finding and clicking available slot for %s at %s", court_id, time_slot)
             slot_elements = page.query_selector_all(self.selector_available_slot)
-            self.logger.info("Found %d slot elements for booking attempt", len(slot_elements))
             
-            # Search for the matching slot (court + time)
-            for idx, slot_elem in enumerate(slot_elements):
+            slot_clicked = False
+            for slot_elem in slot_elements:
                 try:
-                    elem_text = slot_elem.inner_text() if slot_elem else ""
-                    elem_title = slot_elem.get_attribute("title") if slot_elem else ""
+                    elem_text = slot_elem.inner_text()
                     
-                    # Check if this element matches our court and time
-                    # Court can be identified by court_id or name
-                    matches_court = (court_id in elem_text or 
-                                   court_id in elem_title)
-                    matches_time = time_slot in elem_text or time_slot.split("-")[0] in elem_text
-                    
-                    if matches_court and matches_time:
-                        self.logger.info("Found matching slot at index %d: %s", idx, elem_text)
-                        
-                        # Click the slot to initiate booking
+                    # Match by court ID or name and time
+                    if (court_id in elem_text or str(court_id).replace("Court", "") in elem_text) and time_slot in elem_text:
+                        self.logger.info("Found matching slot, clicking...")
                         slot_elem.click()
-                        
-                        # Wait for the booking modal/confirmation
                         page.wait_for_load_state("networkidle", timeout=5000)
-                        
-                        # Check for confirmation element
-                        confirmation = page.query_selector("[class*='success'], [class*='confirm'], [class*='booked']")
-                        if confirmation:
-                            self.logger.info("Booking confirmation detected")
-                            return True
-                        
-                        # If no confirmation element, assume click was successful
-                        # (Halbooking may not show a clear confirmation)
-                        self.logger.info("Slot clicked; assuming booking initiated")
-                        return True
+                        slot_clicked = True
+                        break
                 except Exception as e:
-                    self.logger.debug("Error checking slot at index %d: %s", idx, e)
+                    self.logger.debug("Error checking slot: %s", e)
                     continue
             
-            self.logger.warning("No matching slot found for %s at %s", court_id, time_slot)
-            return False
+            if not slot_clicked:
+                self.logger.warning("Could not find matching slot to click")
+                return False
             
+            # STEP 2: Select co-player
+            self.logger.info("STEP 2: Selecting co-player: %s", co_player_name)
+            try:
+                # Find the row with the co-player name
+                co_player_rows = page.query_selector_all("tr")
+                co_player_btn = None
+                
+                for row in co_player_rows:
+                    if co_player_name in row.inner_text():
+                        # Find the "Vælg" button in this row
+                        co_player_btn = row.query_selector(".senmedbtn")
+                        if co_player_btn:
+                            self.logger.info("Found co-player button, clicking...")
+                            co_player_btn.click()
+                            page.wait_for_load_state("networkidle", timeout=5000)
+                            break
+                
+                if not co_player_btn:
+                    self.logger.warning("Could not find co-player button for %s", co_player_name)
+                    return False
+            except Exception as e:
+                self.logger.exception("Error selecting co-player: %s", e)
+                return False
+            
+            # STEP 3: Add to cart
+            self.logger.info("STEP 3: Adding booking to cart")
+            try:
+                # Find the "Læg i kurv" button - it should have onclick with "add_booking"
+                add_to_cart_btn = page.query_selector(".btn:has-text('Læg i kurv')")
+                if not add_to_cart_btn:
+                    # Alternative: search by onclick attribute
+                    all_buttons = page.query_selector_all(".btn")
+                    for btn in all_buttons:
+                        if "add_booking" in (btn.get_attribute("onclick") or ""):
+                            add_to_cart_btn = btn
+                            break
+                
+                if add_to_cart_btn:
+                    self.logger.info("Found 'Læg i kurv' button, clicking...")
+                    add_to_cart_btn.click()
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                else:
+                    self.logger.warning("Could not find 'Læg i kurv' button")
+                    return False
+            except Exception as e:
+                self.logger.exception("Error adding to cart: %s", e)
+                return False
+            
+            # STEP 4: Accept terms
+            self.logger.info("STEP 4: Accepting terms and conditions")
+            try:
+                # Find and click the checkbox for accepting terms
+                terms_checkbox = page.query_selector("input#acc_beting")
+                if terms_checkbox:
+                    # Check if already checked
+                    is_checked = terms_checkbox.get_attribute("checked")
+                    if not is_checked:
+                        self.logger.info("Checking terms checkbox...")
+                        terms_checkbox.click()
+                        page.wait_for_timeout(500)
+                else:
+                    self.logger.warning("Could not find terms checkbox")
+                    return False
+            except Exception as e:
+                self.logger.exception("Error accepting terms: %s", e)
+                return False
+            
+            # STEP 5: Confirm booking
+            self.logger.info("STEP 5: Confirming booking")
+            try:
+                # Find the "Bekræft booking" button
+                confirm_btn = page.query_selector(".btn:has-text('Bekræft booking')")
+                if not confirm_btn:
+                    # Alternative: search for button with 'checkud' in onclick
+                    all_buttons = page.query_selector_all(".btn")
+                    for btn in all_buttons:
+                        onclick = btn.get_attribute("onclick") or ""
+                        if "checkud" in onclick:
+                            confirm_btn = btn
+                            break
+                
+                if confirm_btn:
+                    self.logger.info("Found 'Bekræft booking' button, clicking...")
+                    confirm_btn.click()
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                else:
+                    self.logger.warning("Could not find 'Bekræft booking' button")
+                    return False
+            except Exception as e:
+                self.logger.exception("Error confirming booking: %s", e)
+                return False
+            
+            # Verify booking was successful by looking for receipt page
+            self.logger.info("STEP 6: Verifying booking success")
+            try:
+                # Look for receipt/confirmation element
+                receipt = page.query_selector(".strong:has-text('Booking')")
+                if receipt:
+                    self.logger.info("Booking receipt found - booking successful!")
+                    return True
+                
+                # Fallback: check if page contains booking confirmation text
+                page_text = page.inner_text()
+                if "Din kvittering" in page_text or "Booking:" in page_text:
+                    self.logger.info("Booking confirmation detected - booking successful!")
+                    return True
+                
+                self.logger.warning("Could not verify booking success")
+                return False
+            except Exception as e:
+                self.logger.exception("Error verifying booking: %s", e)
+                # Even if verification fails, booking might have gone through
+                return False
+                
         except Exception as e:
-            self.logger.exception("Error during booking: %s", e)
+            self.logger.exception("Unexpected error during booking: %s", e)
             return False
         finally:
-            pass  # Keep persistent page for next operation
+            pass  # Keep persistent page
