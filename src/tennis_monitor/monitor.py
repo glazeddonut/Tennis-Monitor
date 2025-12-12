@@ -43,6 +43,9 @@ class TennisMonitor:
         self.slots_found_today: int = 0
         self.last_alive_check_date: Optional[date] = None
         
+        # Store last found slots for PWA to display booking buttons
+        self.last_found_slots: List[Dict] = []
+        
         # Scheduler for daily alive check
         self.scheduler: Optional[BackgroundScheduler] = None
 
@@ -257,6 +260,9 @@ class TennisMonitor:
                     logger.debug("Checking availability...")
                     available = self.check_availability()
                     logger.info("Found %d courts matching preferences", len(available))
+                    
+                    # Store last found slots (max 3 for PWA display)
+                    self.last_found_slots = available[:3]
                     
                     # Track stats for alive check
                     self.checks_performed_today += 1

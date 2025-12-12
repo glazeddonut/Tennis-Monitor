@@ -34,6 +34,7 @@ class StatusResponse(BaseModel):
     slots_found_today: int
     last_check_time: str
     last_update: str
+    available_slots: list[Dict[str, Any]] = []
 
 
 class PreferencesUpdate(BaseModel):
@@ -42,6 +43,18 @@ class PreferencesUpdate(BaseModel):
     preferred_time_slots: Optional[list[str]] = None
     check_interval_seconds: Optional[int] = None
     alive_check_hour: Optional[int] = None
+
+
+class BookingRequest(BaseModel):
+    """Request to book a court."""
+    court_name: str
+    time_slot: str
+
+
+class BookingResponse(BaseModel):
+    """Booking result."""
+    success: bool
+    message: str
 
 
 class APIKey:
@@ -109,7 +122,8 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
             checks_performed_today=monitor.checks_performed_today,
             slots_found_today=monitor.slots_found_today,
             last_check_time=datetime.now().isoformat(),
-            last_update=datetime.now().isoformat()
+            last_update=datetime.now().isoformat(),
+            available_slots=monitor.last_found_slots
         )
     
     @app.get("/api/config", tags=["Configuration"], response_model=ConfigResponse)
@@ -201,6 +215,40 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
         monitor.is_running = False
         logger.info("Monitor stopped via API")
         return {"status": "stopped"}
+    
+    @app.post("/api/monitor/book", tags=["Booking"], response_model=BookingResponse)
+    async def book_court(request: BookingRequest, token: str = Depends(api_key)):
+        """Book a specific court and time slot.
+        
+        Args:
+            request: Booking request with court_name and time_slot
+            
+        Returns:
+            Booking result with success status and message
+        """
+        try:
+            logger.info("Booking request: %s at %s", request.court_name, request.time_slot)
+            
+            # Attempt booking via booking client
+            success = monitor.booking_client.book_court(request.court_name, request.time_slot)
+            
+            if success:
+                message = f"Successfully booked {request.court_name} at {request.time_slot}"
+                logger.info(message)
+                # Send notification about successful booking
+                monitor.notification_manager.notify_booked({
+                    "name": request.court_name,
+                    "time_slot": request.time_slot
+                })
+                return BookingResponse(success=True, message=message)
+            else:
+                message = f"Failed to book {request.court_name} at {request.time_slot}"
+                logger.warning(message)
+                return BookingResponse(success=False, message=message)
+        except Exception as e:
+            message = f"Booking error: {str(e)}"
+            logger.exception(message)
+            return BookingResponse(success=False, message=message)
     
     @app.get("/api/monitor/logs", tags=["Logs"])
     async def get_logs(

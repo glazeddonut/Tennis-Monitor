@@ -208,6 +208,9 @@ class TennisMonitorApp {
       }
     }
     document.getElementById('last-check').textContent = lastCheckText;
+    
+    // Display booking buttons for available slots (max 3)
+    this.updateBookingButtons(data.available_slots || []);
   }
 
   updateConfigDisplay(data) {
@@ -276,6 +279,76 @@ class TennisMonitorApp {
       logsList.appendChild(logItem);
     });
     console.log('[LOGS] Display update complete');
+  }
+
+  updateBookingButtons(slots) {
+    const container = document.getElementById('booking-buttons-container');
+    if (!container) {
+      console.warn('[BOOKING] No booking-buttons-container found in HTML');
+      return;
+    }
+
+    container.innerHTML = '';
+
+    if (!slots || slots.length === 0) {
+      container.innerHTML = '<div style="color: #9ca3af; font-size: 14px; padding: 12px;">No available slots</div>';
+      return;
+    }
+
+    const title = document.createElement('div');
+    title.style.fontSize = '13px';
+    title.style.color = '#6b7280';
+    title.style.marginBottom = '8px';
+    title.style.textTransform = 'uppercase';
+    title.style.letterSpacing = '0.5px';
+    title.textContent = '⚡ QUICK BOOK (up to 3):';
+    container.appendChild(title);
+
+    // Show max 3 slots
+    slots.slice(0, 3).forEach((slot, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'booking-btn';
+      btn.textContent = `${slot.name} @ ${slot.time_slot}`;
+      btn.onclick = () => this.bookSlot(slot.name, slot.time_slot, btn);
+      container.appendChild(btn);
+    });
+  }
+
+  async bookSlot(courtName, timeSlot, btnElement) {
+    try {
+      btnElement.disabled = true;
+      btnElement.textContent = '⏳ Booking...';
+
+      const result = await this.apiCall('/api/monitor/book', {
+        method: 'POST',
+        body: JSON.stringify({
+          court_name: courtName,
+          time_slot: timeSlot
+        })
+      });
+
+      if (result && result.success) {
+        btnElement.textContent = '✓ Booked!';
+        btnElement.style.backgroundColor = '#10b981';
+        this.showSuccess(`Booked ${courtName} at ${timeSlot}`);
+      } else {
+        btnElement.textContent = '✗ Failed';
+        btnElement.style.backgroundColor = '#ef4444';
+        this.showError(result?.message || 'Booking failed');
+      }
+
+      // Reset button after 3 seconds
+      setTimeout(() => {
+        btnElement.disabled = false;
+        btnElement.textContent = `${courtName} @ ${timeSlot}`;
+        btnElement.style.backgroundColor = '';
+      }, 3000);
+    } catch (error) {
+      console.error('[BOOKING] Error:', error);
+      btnElement.disabled = false;
+      btnElement.textContent = '✗ Error';
+      this.showError('Booking error: ' + error.message);
+    }
   }
 
   // Event Listeners
