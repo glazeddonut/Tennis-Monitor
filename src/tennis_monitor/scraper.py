@@ -700,22 +700,85 @@ class PlaywrightBookingClient:
             # STEP 2: Select co-player
             self.logger.info("STEP 2: Selecting co-player: %s", co_player_name)
             try:
+                # Wait a bit for page to fully load
+                page.wait_for_timeout(1000)
+                
+                # Debug: Log what's on the page
+                page_text = page.inner_text("body")
+                self.logger.debug("STEP 2: Page contains co-player name?: %s", co_player_name in page_text)
+                
                 # Find the row with the co-player name
                 co_player_rows = page.query_selector_all("tr")
+                self.logger.debug("STEP 2: Found %d table rows", len(co_player_rows))
                 co_player_btn = None
                 
-                for row in co_player_rows:
-                    if co_player_name in row.inner_text():
-                        # Find the "Vælg" button in this row
+                for i, row in enumerate(co_player_rows):
+                    row_text = row.inner_text()
+                    if co_player_name in row_text:
+                        self.logger.debug("STEP 2: Found co-player in row %d: %s", i, row_text[:100])
+                        
+                        # Try different button selectors
+                        # 1. Try .senmedbtn class
                         co_player_btn = row.query_selector(".senmedbtn")
+                        
+                        # 2. Try button with "Vælg" text
+                        if not co_player_btn:
+                            buttons = row.query_selector_all("button, input[type='button'], span[onclick]")
+                            for btn in buttons:
+                                btn_text = btn.inner_text()
+                                if "Vælg" in btn_text or "vælg" in btn_text:
+                                    co_player_btn = btn
+                                    self.logger.debug("STEP 2: Found 'Vælg' button by text")
+                                    break
+                        
+                        # 3. Try onclick with "medsend"
+                        if not co_player_btn:
+                            onclick_btn = row.query_selector("[onclick*='medsend']")
+                            if onclick_btn:
+                                co_player_btn = onclick_btn
+                                self.logger.debug("STEP 2: Found onclick button with medsend")
+                        
                         if co_player_btn:
                             self.logger.info("Found co-player button, clicking...")
-                            co_player_btn.click()
-                            page.wait_for_load_state("networkidle", timeout=5000)
+                            
+                            # Just use JavaScript to click - simpler and avoids visibility issues
+                            try:
+                                # Get the onclick handler text
+                                onclick_text = co_player_btn.get_attribute("onclick") or ""
+                                self.logger.debug("STEP 2: Button onclick: %s", onclick_text[:100])
+                                
+                                # Execute the onclick
+                                if onclick_text:
+                                    page.evaluate(f"({onclick_text})")
+                                else:
+                                    # Fallback: directly click using JavaScript
+                                    page.evaluate("Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Vælg')).click()")
+                                
+                                self.logger.info("STEP 2: Button clicked successfully")
+                            except Exception as click_err:
+                                self.logger.warning("STEP 2: Click failed: %s", click_err)
+                                return False
+                            
+                            page.wait_for_timeout(2000)  # Wait for page update
                             break
                 
                 if not co_player_btn:
                     self.logger.warning("Could not find co-player button for %s", co_player_name)
+                    
+                    # If no table rows, search entire page for buttons
+                    if len(co_player_rows) == 0:
+                        self.logger.debug("STEP 2: No table rows found, searching entire page...")
+                        # Look for any button with Vælg text
+                        all_buttons = page.query_selector_all("button, input[type='button'], span[onclick], a")
+                        self.logger.debug("STEP 2: Found %d potential buttons", len(all_buttons))
+                        for btn in all_buttons:
+                            btn_text = btn.inner_text()
+                            self.logger.debug("STEP 2: Button: %s", btn_text[:50])
+                    else:
+                        # Log first few rows for debugging
+                        for i, row in enumerate(co_player_rows[:5]):
+                            row_html = row.inner_html()
+                            self.logger.debug("Row %d HTML: %s", i, row_html[:200])
                     return False
             except Exception as e:
                 self.logger.exception("Error selecting co-player: %s", e)
@@ -736,8 +799,19 @@ class PlaywrightBookingClient:
                 
                 if add_to_cart_btn:
                     self.logger.info("Found 'Læg i kurv' button, clicking...")
-                    add_to_cart_btn.click()
-                    page.wait_for_load_state("networkidle", timeout=5000)
+                    # Use JavaScript to click (avoids visibility issues)
+                    try:
+                        onclick_text = add_to_cart_btn.get_attribute("onclick") or ""
+                        if onclick_text:
+                            page.evaluate(f"({onclick_text})")
+                        else:
+                            page.evaluate("Array.from(document.querySelectorAll('.btn')).find(b => b.textContent.includes('Læg i kurv')).click()")
+                        self.logger.debug("STEP 3: Add to cart button clicked")
+                    except Exception as js_err:
+                        self.logger.warning("STEP 3: JavaScript click failed: %s, trying normal click", js_err)
+                        add_to_cart_btn.click(force=True)
+                    
+                    page.wait_for_timeout(2000)  # Wait for page update
                 else:
                     self.logger.warning("Could not find 'Læg i kurv' button")
                     return False
@@ -755,8 +829,17 @@ class PlaywrightBookingClient:
                     is_checked = terms_checkbox.get_attribute("checked")
                     if not is_checked:
                         self.logger.info("Checking terms checkbox...")
-                        terms_checkbox.click()
+                        # Use JavaScript to check the checkbox (avoids visibility issues)
+                        try:
+                            page.evaluate("document.getElementById('acc_beting').checked = true;")
+                            self.logger.debug("STEP 4: Checkbox checked via JavaScript")
+                        except Exception as js_err:
+                            self.logger.warning("STEP 4: JavaScript check failed: %s, trying click", js_err)
+                            terms_checkbox.click(force=True)
+                        
                         page.wait_for_timeout(500)
+                    else:
+                        self.logger.debug("STEP 4: Terms checkbox already checked")
                 else:
                     self.logger.warning("Could not find terms checkbox")
                     return False
@@ -780,8 +863,19 @@ class PlaywrightBookingClient:
                 
                 if confirm_btn:
                     self.logger.info("Found 'Bekræft booking' button, clicking...")
-                    confirm_btn.click()
-                    page.wait_for_load_state("networkidle", timeout=5000)
+                    # Use JavaScript to click (avoids visibility issues)
+                    try:
+                        onclick_text = confirm_btn.get_attribute("onclick") or ""
+                        if onclick_text:
+                            page.evaluate(f"({onclick_text})")
+                        else:
+                            page.evaluate("Array.from(document.querySelectorAll('.btn')).find(b => b.textContent.includes('Bekræft')).click()")
+                        self.logger.debug("STEP 5: Confirm button clicked")
+                    except Exception as js_err:
+                        self.logger.warning("STEP 5: JavaScript click failed: %s, trying normal click", js_err)
+                        confirm_btn.click(force=True)
+                    
+                    page.wait_for_timeout(2000)  # Wait for page update
                 else:
                     self.logger.warning("Could not find 'Bekræft booking' button")
                     return False
