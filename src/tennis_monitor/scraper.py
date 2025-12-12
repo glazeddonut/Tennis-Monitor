@@ -602,48 +602,86 @@ class PlaywrightBookingClient:
             pass  # Don't close page; keep it persistent for next check
 
     def book_court(self, court_id: str, time_slot: str) -> bool:
-        """Attempt to book a court by scraping the booking flow.
+        """Attempt to book a court for Halbooking systems.
+        
+        For Halbooking, we find the available slot button matching the court and time,
+        then click it to trigger the booking flow via the onclick handler.
 
-        Because booking flows are site-specific, this method performs a
-        best-effort attempt using the configured selectors. For production
-        usage you'll likely need to update selectors and add steps specific
-        to the target booking website.
+        Args:
+            court_id: Court identifier (e.g., "Court11" or court number like "9")
+            time_slot: Time slot in HH:MM-HH:MM format (e.g., "20:00-21:00")
+            
+        Returns:
+            True if booking appears successful, False otherwise
         """
-        self._ensure_browser()  # Initialize persistent browser if needed
+        self._ensure_browser()
         try:
-            page = self.page  # Use persistent page
-            page.goto(self.base_url, timeout=15000)
-            self.login(page)
-
-            # TODO: Navigate to booking page for the specific court/time.
-            # This is highly site-specific. If the site exposes a direct
-            # booking URL pattern you can use `PW_BOOK_URL_TEMPLATE` env var.
-            book_url_template = os.getenv("PW_BOOK_URL_TEMPLATE")
-            if book_url_template:
-                url = book_url_template.format(court_id=court_id, time_slot=time_slot)
+            page = self.page
+            
+            # Navigate to the booking page if not already there
+            if "proc_baner.asp" not in page.url:
+                page.goto(self.base_url, timeout=15000)
+                self.login(page)
+                # Navigate to Book baner page
+                book_baner_btn = page.query_selector(self.selector_book_baner)
+                if book_baner_btn:
+                    book_baner_btn.click()
+                else:
+                    # Try the menu-based approach
+                    menu_toggle = page.query_selector("button[data-toggle='collapse']")
+                    if menu_toggle:
+                        menu_toggle.hover()
+                        page.wait_for_timeout(500)
+                        menu_items = page.query_selector_all("a[href*='proc_baner']")
+                        if menu_items:
+                            menu_items[0].click()
+                
+                page.wait_for_load_state("networkidle", timeout=5000)
+            
+            # Find all available slot elements
+            slot_elements = page.query_selector_all(self.selector_available_slot)
+            self.logger.info("Found %d slot elements for booking attempt", len(slot_elements))
+            
+            # Search for the matching slot (court + time)
+            for idx, slot_elem in enumerate(slot_elements):
                 try:
-                    page.goto(url, timeout=15000)
-                except Exception:
-                    pass
-
-            page.wait_for_load_state("networkidle", timeout=5000)
-
-            # Find the row for the court and click the book button
-            rows = page.query_selector_all(self.selector_court_rows)
-            for row in rows:
-                cid = row.get_attribute("data-id") or ""
-                if cid == court_id or (not cid and row.inner_text().find(time_slot) != -1):
-                    btn = row.query_selector(self.selector_book_button)
-                    if btn:
-                        try:
-                            btn.click()
-                            # Confirm booking, wait for success
-                            page.wait_for_load_state("networkidle", timeout=5000)
-                            # Optionally detect booking confirmation element
+                    elem_text = slot_elem.inner_text() if slot_elem else ""
+                    elem_title = slot_elem.get_attribute("title") if slot_elem else ""
+                    
+                    # Check if this element matches our court and time
+                    # Court can be identified by court_id or name
+                    matches_court = (court_id in elem_text or 
+                                   court_id in elem_title)
+                    matches_time = time_slot in elem_text or time_slot.split("-")[0] in elem_text
+                    
+                    if matches_court and matches_time:
+                        self.logger.info("Found matching slot at index %d: %s", idx, elem_text)
+                        
+                        # Click the slot to initiate booking
+                        slot_elem.click()
+                        
+                        # Wait for the booking modal/confirmation
+                        page.wait_for_load_state("networkidle", timeout=5000)
+                        
+                        # Check for confirmation element
+                        confirmation = page.query_selector("[class*='success'], [class*='confirm'], [class*='booked']")
+                        if confirmation:
+                            self.logger.info("Booking confirmation detected")
                             return True
-                        except Exception:
-                            return False
-
+                        
+                        # If no confirmation element, assume click was successful
+                        # (Halbooking may not show a clear confirmation)
+                        self.logger.info("Slot clicked; assuming booking initiated")
+                        return True
+                except Exception as e:
+                    self.logger.debug("Error checking slot at index %d: %s", idx, e)
+                    continue
+            
+            self.logger.warning("No matching slot found for %s at %s", court_id, time_slot)
+            return False
+            
+        except Exception as e:
+            self.logger.exception("Error during booking: %s", e)
             return False
         finally:
-            pass  # Don't close page; keep it persistent for next operation
+            pass  # Keep persistent page for next operation

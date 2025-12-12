@@ -206,7 +206,22 @@ class TennisMonitor:
             logger.info("Processing pending booking: %s at %s", court_name, time_slot)
             
             try:
-                success = self.booking_client.book_court(court_name, time_slot)
+                # Try to find the full slot data from last_found_slots for better matching
+                matching_slot = None
+                for slot in self.last_found_slots:
+                    if (slot.get("name") == court_name and 
+                        slot.get("time_slot") == time_slot):
+                        matching_slot = slot
+                        break
+                
+                # Use the full slot object if found, otherwise use the basic info
+                if matching_slot:
+                    # For Halbooking, we can use the slot's ID (court_num) and onclick data
+                    court_id = matching_slot.get("court_num") or matching_slot.get("id")
+                else:
+                    court_id = court_name
+                
+                success = self.booking_client.book_court(court_id, time_slot)
                 
                 if success:
                     logger.info("Successfully booked %s at %s", court_name, time_slot)
