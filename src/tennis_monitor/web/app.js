@@ -51,11 +51,14 @@ class TennisMonitorApp {
     };
 
     try {
+      console.log('[API Call]', endpoint, 'URL:', url, 'Token present:', !!this.apiKey);
       const response = await fetch(url, {
         ...options,
         headers
       });
 
+      console.log('[API Response]', endpoint, 'Status:', response.status);
+      
       if (response.status === 401) {
         this.showError('API Key invalid. Please check your configuration.');
         return null;
@@ -65,9 +68,11 @@ class TennisMonitorApp {
         throw new Error(`API Error: ${response.status}`);
       }
 
-      return await response.json();
+      const json = await response.json();
+      console.log('[API Data]', endpoint, 'returned', Object.keys(json).join(', '));
+      return json;
     } catch (error) {
-      console.error('[API Error]', error);
+      console.error('[API Error]', endpoint, error);
       this.showError(`API Error: ${error.message}`);
       return null;
     }
