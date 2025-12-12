@@ -23,6 +23,7 @@ class TennisMonitorApp {
     this.setupEventListeners();
     this.registerServiceWorker();
     await this.loadStatus();
+    await this.loadServerInfo();
     this.startAutoRefresh();
   }
 
@@ -83,6 +84,15 @@ class TennisMonitorApp {
     const data = await this.apiCall('/api/config');
     if (data) {
       this.updateConfigDisplay(data);
+    }
+  }
+
+  async loadServerInfo() {
+    try {
+      const serverUrl = this.apiUrl;
+      document.getElementById('server-info').textContent = `${serverUrl} ✓`;
+    } catch (e) {
+      document.getElementById('server-info').textContent = 'Unknown';
     }
   }
 
@@ -263,6 +273,8 @@ class TennisMonitorApp {
       this.loadConfig();
     } else if (tabName === 'logs') {
       this.loadLogs();
+    } else if (tabName === 'settings') {
+      this.loadServerInfo();
     }
   }
 
