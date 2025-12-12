@@ -661,7 +661,14 @@ class PlaywrightBookingClient:
                     
                     # Parse time from onclick: "mdsende('proc_straks.asp','opret','12-12-2025;2;9;20:00;21:00;0;','','')"
                     # Format: date;region;court_num;start_time;end_time;...
-                    has_time = time_slot in elem_html or time_slot.split("-")[0] in onclick
+                    start_time, end_time = time_slot.split("-")
+                    
+                    # Match time: both start and end time must appear in onclick (in correct order)
+                    has_time = (
+                        start_time in onclick and 
+                        end_time in onclick and
+                        onclick.find(start_time) < onclick.find(end_time)
+                    )
                     
                     # Match by court ID/name
                     court_match = (
@@ -672,9 +679,18 @@ class PlaywrightBookingClient:
                         str(court_id).replace("Court", "") in onclick
                     )
                     
+                    # Debug: Log matching attempts for first few slots
+                    if has_time:
+                        self.logger.debug(
+                            "STEP 1: Checking slot - court_match=%s, time_found (both %s and %s)",
+                            court_match,
+                            start_time,
+                            end_time
+                        )
+                    
                     # If both match, click it
                     if has_time and court_match:
-                        self.logger.info("Found matching slot in HTML/onclick")
+                        self.logger.info("Found matching slot in HTML/onclick: onclick=%s", onclick[:100])
                         slot_elem.click()
                         page.wait_for_load_state("networkidle", timeout=5000)
                         slot_clicked = True
