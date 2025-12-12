@@ -171,8 +171,20 @@ class TennisMonitorApp {
 
     checksText.textContent = data.checks_performed_today || 0;
     slotsText.textContent = data.slots_found_today || 0;
-    document.getElementById('last-check').textContent = 
-      new Date(data.last_check_time).toLocaleString() || 'Never';
+    
+    // Format last check time
+    let lastCheckText = 'Never checked';
+    if (data.last_check_time) {
+      try {
+        const date = new Date(data.last_check_time);
+        if (!isNaN(date.getTime())) {
+          lastCheckText = date.toLocaleString();
+        }
+      } catch (e) {
+        lastCheckText = 'Time unknown';
+      }
+    }
+    document.getElementById('last-check').textContent = lastCheckText;
   }
 
   updateConfigDisplay(data) {

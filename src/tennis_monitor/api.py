@@ -32,8 +32,8 @@ class StatusResponse(BaseModel):
     is_running: bool
     checks_performed_today: int
     slots_found_today: int
+    last_check_time: str
     last_update: str
-    next_check_in_seconds: int
 
 
 class PreferencesUpdate(BaseModel):
@@ -108,8 +108,8 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
             is_running=monitor.is_running,
             checks_performed_today=monitor.checks_performed_today,
             slots_found_today=monitor.slots_found_today,
-            last_update=datetime.now().isoformat(),
-            next_check_in_seconds=config.monitoring.check_interval_seconds
+            last_check_time=datetime.now().isoformat(),
+            last_update=datetime.now().isoformat()
         )
     
     @app.get("/api/config", tags=["Configuration"], response_model=ConfigResponse)
