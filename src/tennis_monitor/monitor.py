@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 import sys
+import threading
 from collections import deque
 from typing import List, Dict, Optional, Set
 from datetime import datetime, date
@@ -49,6 +50,8 @@ class TennisMonitor:
         
         # Queue for pending bookings (user-requested via API)
         self.pending_bookings: deque = deque()
+        # Event to signal immediate booking processing (API quick bookings)
+        self.process_bookings_now = threading.Event()
         
         # Scheduler for daily alive check
         self.scheduler: Optional[BackgroundScheduler] = None
@@ -355,9 +358,11 @@ class TennisMonitor:
                     logger.exception("Error during availability check (will retry): %s", e)
                     # Don't exit; just log and continue to next check
                 
-                # Wait before next check
+                # Wait before next check, but allow wakeup via event for quick bookings
                 logger.debug("Waiting %d seconds before next check", self.config.monitoring.check_interval_seconds)
-                time.sleep(self.config.monitoring.check_interval_seconds)
+                # Wait with timeout so quick bookings can wake us up
+                self.process_bookings_now.wait(timeout=self.config.monitoring.check_interval_seconds)
+                self.process_bookings_now.clear()
         except KeyboardInterrupt:
             self.is_running = False
             logger.info("Monitor stopped by user.")

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends, Header
@@ -218,28 +219,31 @@ def create_api(monitor: TennisMonitor, config: AppConfig) -> FastAPI:
     
     @app.post("/api/monitor/book", tags=["Booking"], response_model=BookingResponse)
     async def book_court(request: BookingRequest, token: str = Depends(api_key)):
-        """Queue a booking request to be processed by the monitor thread.
+        """Queue a booking request to be processed immediately by the monitor thread.
         
-        The booking is queued and will be processed during the next monitor cycle.
-        This ensures thread safety by letting the monitor thread (which owns the
-        Playwright browser) execute the actual booking.
+        The booking is queued and the monitor thread is signaled to process it immediately,
+        providing instant feedback to the user while the booking executes in the monitor's
+        thread (which is thread-safe with the Playwright browser).
         
         Args:
             request: Booking request with court_name and time_slot
             
         Returns:
-            Response indicating the booking was queued
+            Response indicating the booking is being processed immediately
         """
         try:
-            logger.info("Queueing booking request: %s at %s", request.court_name, request.time_slot)
+            logger.info("Quick booking request: %s at %s", request.court_name, request.time_slot)
             
-            # Queue the booking for processing by the monitor thread
+            # Queue the booking for immediate processing
             monitor.pending_bookings.append({
                 "court_name": request.court_name,
                 "time_slot": request.time_slot
             })
             
-            message = f"Booking queued for {request.court_name} at {request.time_slot} - will be processed next check"
+            # Signal the monitor to process bookings immediately (wake up from sleep)
+            monitor.process_bookings_now.set()
+            
+            message = f"Quick booking initiated for {request.court_name} at {request.time_slot}"
             logger.info(message)
             return BookingResponse(success=True, message=message)
         except Exception as e:
