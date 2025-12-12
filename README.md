@@ -1,169 +1,287 @@
 # Tennis Court Booking Monitor
 
-A Python-based system for monitoring tennis court booking systems to automatically book available courts as they become available on the same day.
+A Python-based system for monitoring tennis court booking systems with automated booking and a modern PWA interface for instant booking.
 
-> **📢 Latest Update (Dec 6, 2025)**: Fixed critical bug where monitor was hanging after scraping availability. Now uses persistent browser session for reliable continuous monitoring. See [MONITOR_FIX_COMPLETE.md](MONITOR_FIX_COMPLETE.md) for details.
+> **📢 Latest Update (Dec 12, 2025)**: Added instant quick booking feature with REST API and PWA web interface! Book courts one-click from your phone with real-time availability updates.
 
 ## Features
 
-- **Real-time Monitoring**: Continuously monitor tennis court availability
+### Core Monitoring
+- **Real-time Monitoring**: Continuously monitor tennis court availability (every 30 seconds)
 - **Automated Booking**: Automatically book courts when they become available
 - **Same-day Alerts**: Get notified immediately when preferred courts are available
 - **Duplicate Prevention**: Smart notification deduplication with daily reset
 - **Health Checks**: Daily "I'm alive" notifications to verify the monitor is running
-- **Configurable Preferences**: Set preferred courts and time slots
-- **Multiple Notification Methods**: Email and push notifications (ntfy.sh, Pushbullet)
-- **Web Scraping**: Playwright-based scraper for various booking systems
+- **Persistent Sessions**: Browser session survives network interruptions
 
-## Project Structure
+### Quick Booking (NEW! 🎾)
+- **One-Click Booking**: Click "Book" button in PWA to instantly book a court
+- **Instant Execution**: Books within seconds, not waiting for next monitor cycle
+- **5-Step Halbooking Flow**: Full automated booking including co-player selection
+- **Real-time Feedback**: Button shows "⏳ Booking..." → "✅ Booked!"
 
-```
-tennis-monitor/
-├── src/
-│   ├── tennis_monitor/
-│   │   ├── __init__.py
-│   │   ├── config.py          # Configuration management
-│   │   ├── booking.py         # Booking system interactions
-│   │   ├── monitor.py         # Monitoring logic
-│   │   ├── notifications.py   # Alert notifications
-│   │   └── utils.py           # Utility functions
-│   └── main.py                # Entry point
-├── tests/
-│   ├── __init__.py
-│   ├── test_config.py
-│   ├── test_booking.py
-│   └── test_monitor.py
-├── .github/
-│   └── copilot-instructions.md
-├── .vscode/
-│   └── tasks.json            # VS Code tasks
-├── .env.example              # Example environment variables
-├── pyproject.toml            # Project metadata and dependencies
-├── requirements.txt          # Production dependencies
-├── requirements-dev.txt      # Development dependencies
-└── README.md
-```
+### API & Web Interface (NEW!)
+- **REST API**: Full-featured API to control monitor from external apps
+- **Progressive Web App (PWA)**: Modern responsive web interface
+- **Real-time Status**: View available courts, check preferences, see logs
+- **Mobile-Friendly**: Works great on iPhone, iPad, Android
 
-## Setup
+### Notifications
+- **Push Notifications**: ntfy.sh, Pushbullet, email alerts
+- **Booking Confirmation**: Get notified when a court is successfully booked
+- **Error Alerts**: Know immediately if something goes wrong
 
-1. **Clone or navigate to the project directory**
+### Configuration
+- **Flexible Preferences**: Set preferred courts and time slots
+- **Dynamic Court Mapping**: Map internal court IDs to display names
+- **Multiple Notification Methods**: Email, push (ntfy.sh, Pushbullet)
 
-2. **Create a virtual environment**:
+## Quick Start
+
+### Local Development
+
+1. **Clone and setup**:
    ```bash
+   git clone <repo>
+   cd Tennis-Monitor
    python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate
    ```
 
-3. **Install dependencies**:
+2. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Configure environment variables**:
+3. **Configure**:
    ```bash
    cp .env.example .env
-   # Edit .env with your booking system credentials and preferences
+   # Edit .env with your credentials
    ```
+
+4. **Run API + Monitor**:
+   ```bash
+   python -m api_server
+   ```
+   
+   Then visit: **http://localhost:8000/pwa**
+
+### Docker
+
+```bash
+docker-compose up
+```
+
+Access the PWA at: **http://192.168.86.248:8000/pwa** (adjust IP for your network)
+
+## API Endpoints
+
+All endpoints require `?token=YOUR_API_KEY` (set `API_KEY` in .env)
+
+### Status & Control
+- `GET /api/status` - Get monitor status and available slots
+- `GET /api/config` - Get current configuration
+- `POST /api/monitor/start` - Start monitoring
+- `POST /api/monitor/stop` - Stop monitoring
+
+### Booking
+- `POST /api/monitor/book` - Queue instant booking
+  ```json
+  {
+    "court_name": "Court11",
+    "time_slot": "20:00-21:00"
+  }
+  ```
+
+### Preferences
+- `POST /api/config/preferences` - Update preferences
+- `GET /api/monitor/logs` - Get recent logs
+
+### Web Interface
+- `GET /pwa/` - Progressive Web App (dashboard)
+
+## Configuration
+
+### Required Settings (.env)
+```bash
+# Booking System
+BOOKING_SYSTEM_URL=https://example.halbooking.dk
+BOOKING_USERNAME=your_username
+BOOKING_PASSWORD=your_password
+
+# Court Preferences
+PREFERRED_COURTS=Court11,Court12
+PREFERRED_TIME_SLOTS=18:00,19:00,20:00
+
+# Quick Booking
+BOOKING_CO_PLAYER=Aksel Mahler Tolborg  # Name of co-player for bookings
+
+# Court Mapping (internal ID to display name)
+PW_COURT_MAP=9:Court11,10:Court12,14:Court4,20:Court5
+```
+
+### Notifications
+```bash
+# Push Notifications (ntfy.sh recommended)
+ENABLE_PUSH_NOTIFICATIONS=true
+PUSH_SERVICE=ntfy
+NTFY_TOPIC=my_unique_topic_name
+
+# Daily Health Check
+ALIVE_CHECK_ENABLED=true
+ALIVE_CHECK_HOUR=10  # 10 AM
+
+# API Access
+API_KEY=your_secret_api_key
+```
+
+### Monitoring
+```bash
+CHECK_INTERVAL_SECONDS=30        # Check availability every 30 sec
+AUTO_BOOK_ENABLED=false          # Manual booking only
+LOG_LEVEL=INFO                   # DEBUG for verbose logs
+BOOKING_HEADLESS=true            # false to see browser window
+```
+
+See `.env.example` for all options.
 
 ## Development
 
-Install development dependencies:
+### Project Structure
+```
+src/
+├── main.py                    # CLI entry point (monitor only)
+├── api_server.py              # API + Monitor (recommended)
+└── tennis_monitor/
+    ├── __init__.py
+    ├── config.py              # Configuration & environment vars
+    ├── monitor.py             # Monitor core logic
+    ├── scraper.py             # Playwright-based scraper
+    ├── booking.py             # Booking client wrapper
+    ├── notifications.py       # Notification managers
+    ├── api.py                 # FastAPI REST endpoints
+    ├── utils.py               # Utility functions
+    └── web/                   # PWA files
+        ├── app.js             # PWA app logic
+        ├── index.html         # PWA interface
+        ├── manifest.json      # PWA manifest
+        └── service-worker.js  # Offline support
+```
+
+### Running Locally
+
+**Monitor + API + PWA**:
 ```bash
+python -m api_server
+```
+
+**Monitor only** (no API/PWA):
+```bash
+python -m main
+```
+
+### Development Setup
+
+```bash
+# Install dev dependencies
 pip install -r requirements-dev.txt
-```
 
-### Running Tests
-```bash
-pytest
-```
+# Run tests
+pytest -v
 
-### Code Quality
-```bash
 # Format code
 black src/ tests/
 
 # Lint
 flake8 src/ tests/
 
-# Type checking
+# Type check
 mypy src/
 ```
 
-## Usage
+## Architecture
 
-### Running the Monitor
+### Monitor Thread
+- Runs continuously in background
+- Checks availability every 30 seconds
+- Processes queued bookings immediately when signaled via `threading.Event`
+- Owns the persistent Playwright browser session (thread-safe)
 
-```bash
-# Using Python module
-python -m main
+### API Thread
+- FastAPI server on port 8000
+- Handles HTTP requests from PWA and external clients
+- Queues booking requests and signals monitor to process them
+- Thread-safe communication via queue + event
 
-# Or directly
-python src/main.py
-```
+### PWA Interface
+- Modern responsive web app (works on mobile!)
+- 4 tabs: Status, Preferences, Logs, Settings
+- Shows up to 3 available slots with one-click booking buttons
+- Real-time status updates (auto-refresh every 5 seconds)
+- Progressive Web App - works offline!
 
-The monitor will:
-1. Log in to your booking system
-2. Check for available courts matching your preferences
-3. Send notifications for new available slots
-4. Prevent duplicate notifications (resets daily)
-5. Send a daily health check notification at your configured time
-6. Continue checking indefinitely until stopped (Ctrl+C)
+## Booking Flow (5 Steps)
 
-### Push Notifications
+When you click "Book" in the PWA:
 
-#### ntfy.sh (Recommended - Free)
+1. **API receives request** → returns immediately "⏳ Booking..."
+2. **Monitor wakes up** → signals event to stop sleeping
+3. **STEP 1**: Find and click matching slot on booking page
+4. **STEP 2**: Select co-player from list (Aksel Mahler Tolborg)
+5. **STEP 3**: Add to cart ("Læg i kurv")
+6. **STEP 4**: Accept terms checkbox
+7. **STEP 5**: Confirm booking ("Bekræft booking")
+8. **STEP 6**: Verify receipt → sends "✅ Booked!" notification
 
-1. Install the ntfy app on iPhone: [ntfy on App Store](https://apps.apple.com/us/app/ntfy/id1665873820)
-2. Choose a unique topic name in your `.env`:
-   ```
+Total time: Usually 2-5 seconds from click to confirmation!
+
+## Notifications
+
+### ntfy.sh (Recommended - Free)
+
+1. Install [ntfy app](https://apps.apple.com/us/app/ntfy/id1665873820) on iPhone
+2. Configure .env:
+   ```bash
+   ENABLE_PUSH_NOTIFICATIONS=true
    PUSH_SERVICE=ntfy
-   NTFY_TOPIC=mytennismonitor42
-   ENABLE_PUSH_NOTIFICATIONS=true
+   NTFY_TOPIC=my_unique_topic_name
    ```
-3. Open the ntfy app and subscribe to your topic
-4. Run the monitor - notifications will arrive on your iPhone
+3. Open ntfy app → subscribe to your topic
+4. You'll get real-time notifications for:
+   - Court availability
+   - Booking confirmations
+   - Errors & alerts
+   - Daily health checks
 
-#### Pushbullet (Alternative)
+### Other Services
+- **Pushbullet**: Alternative push service
+- **Email**: For server alerts (optional)
 
-1. Sign up at [Pushbullet.com](https://www.pushbullet.com)
-2. Get your API key from Account Settings
-3. Install the Pushbullet app on iPhone
-4. Configure in `.env`:
-   ```
-   PUSH_SERVICE=pushbullet
-   PUSHBULLET_API_KEY=your_api_key_here
-   ENABLE_PUSH_NOTIFICATIONS=true
-   ```
+## Troubleshooting
 
-## Configuration
+### "Booking receipt not found"
+Check that the booking system page structure matches. Update `PW_COURT_MAP` with your court IDs.
 
-Edit `.env` file to configure:
+### Notifications not arriving
+- Verify NTFY_TOPIC matches exactly in .env and ntfy app
+- Check internet connection
+- Ensure ENABLE_PUSH_NOTIFICATIONS=true
 
-### Required Settings
-- `BOOKING_SYSTEM_URL` - URL to your booking system
-- `BOOKING_USERNAME` - Username for login
-- `BOOKING_PASSWORD` - Password for login
-- `PREFERRED_COURTS` - Comma-separated court names (e.g., `Court11,Court12`)
-- `PREFERRED_TIME_SLOTS` - Comma-separated preferred times (e.g., `18:00,19:00,20:00`)
-
-### Notification Settings
-- `ENABLE_PUSH_NOTIFICATIONS` - Enable push notifications (true/false)
-- `PUSH_SERVICE` - Service to use: `ntfy` (recommended) or `pushbullet`
-- `NTFY_TOPIC` - Your unique ntfy topic (for ntfy.sh service)
-- `PUSHBULLET_API_KEY` - Your Pushbullet API key (if using Pushbullet)
-
-### Monitoring Settings
-- `CHECK_INTERVAL_SECONDS` - How often to check for availability (default: 300)
-- `AUTO_BOOK_ENABLED` - Automatically book courts (true/false, default: false)
-- `ALIVE_CHECK_ENABLED` - Send daily health check notification (default: true)
-- `ALIVE_CHECK_HOUR` - Hour of day for health check (0-23, default: 10 for 10:00 AM)
-
-See `.env.example` for all available options.
+### Monitor not starting bookings
+- Check BOOKING_CO_PLAYER is set correctly
+- Verify PREFERRED_COURTS and PREFERRED_TIME_SLOTS in .env
+- Check logs: `tail -f logs/tennis_monitor.log`
 
 ## Contributing
 
-Contributions are welcome! Please ensure all tests pass and code is properly formatted before submitting.
+Contributions welcome! Please ensure tests pass:
+```bash
+pytest
+black src/ tests/
+flake8 src/ tests/
+mypy src/
+```
 
 ## License
 
-MIT License
+MIT

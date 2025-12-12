@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Entry point for the Tennis Monitor Docker container.
-# This script simply runs the monitor using the container's Python environment.
+# Runs the API server with integrated monitor in background.
 
 cd /app
 
@@ -13,4 +13,4 @@ else
   export PLAYWRIGHT_HEADLESS=1
 fi
 
-exec python -m main
+exec python -m api_server
