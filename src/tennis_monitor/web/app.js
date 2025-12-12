@@ -215,48 +215,39 @@ class TennisMonitorApp {
       logs = data.logs;
     }
 
-    if (logs.length === 0) {
+    if (!logs || logs.length === 0) {
       logsList.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px;">No logs available</div>';
       return;
     }
 
     logs.slice(0, 50).forEach((logLine) => {
+      if (!logLine) return; // Skip empty lines
+      
       const logItem = document.createElement('div');
       logItem.className = 'log-item';
       
-      // Parse log line if it's a string
-      let logHtml = '';
-      if (typeof logLine === 'string') {
-        // Extract timestamp if present (format: "YYYY-MM-DD HH:MM:SS,mmm")
-        const timestampMatch = logLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        const timestamp = timestampMatch ? timestampMatch[1] : '';
-        
-        // Extract log level
-        const levelMatch = logLine.match(/(DEBUG|INFO|WARNING|ERROR|CRITICAL)/);
-        const level = levelMatch ? levelMatch[1] : 'INFO';
-        
-        // Get the message (everything after the level indicator)
-        const message = logLine.replace(/^.*?(DEBUG|INFO|WARNING|ERROR|CRITICAL):/, '').trim();
-        
-        logHtml = `
-          <span class="log-time">${timestamp}</span>
-          <span class="log-level log-${level.toLowerCase()}">${level}</span>
-          <span class="log-message">${this.escapeHtml(message)}</span>
-        `;
-      } else if (typeof logLine === 'object') {
-        // Handle structured log objects
-        const timestamp = logLine.timestamp ? new Date(logLine.timestamp).toLocaleTimeString() : '';
-        const level = logLine.level || 'INFO';
-        const message = logLine.message || JSON.stringify(logLine);
-        
-        logHtml = `
-          <span class="log-time">${timestamp}</span>
-          <span class="log-level log-${level.toLowerCase()}">${level}</span>
-          <span class="log-message">${this.escapeHtml(message)}</span>
-        `;
+      // Clean up the log line (remove trailing newline)
+      const cleanLine = logLine.trim();
+      
+      // Parse log line format: "YYYY-MM-DD HH:MM:SS,mmm LEVEL [module] message"
+      const timeMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+      const levelMatch = cleanLine.match(/(DEBUG|INFO|WARNING|ERROR|CRITICAL)/);
+      
+      const timestamp = timeMatch ? timeMatch[1] : '';
+      const level = levelMatch ? levelMatch[1] : 'INFO';
+      
+      // Extract message (everything after the log level)
+      let message = cleanLine;
+      if (levelMatch) {
+        const index = cleanLine.indexOf(levelMatch[1]);
+        message = cleanLine.substring(index + levelMatch[1].length).trim();
       }
       
-      logItem.innerHTML = logHtml;
+      logItem.innerHTML = `
+        <span class="log-time">${this.escapeHtml(timestamp)}</span>
+        <span class="log-level log-${level.toLowerCase()}">${level}</span>
+        <span class="log-message">${this.escapeHtml(message)}</span>
+      `;
       logsList.appendChild(logItem);
     });
   }
