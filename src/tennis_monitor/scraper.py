@@ -644,7 +644,8 @@ class PlaywrightBookingClient:
                 try:
                     elem_text = elem.inner_text()
                     elem_title = elem.get_attribute("title") or ""
-                    self.logger.debug("Slot %d text: '%s' | title: '%s'", idx, elem_text, elem_title)
+                    elem_html = elem.inner_html()
+                    self.logger.debug("Slot %d text: '%s' | title: '%s' | html: '%s'", idx, elem_text, elem_title, elem_html[:200])
                 except Exception as e:
                     self.logger.debug("Error reading slot %d: %s", idx, e)
             
@@ -654,20 +655,26 @@ class PlaywrightBookingClient:
                     elem_text = slot_elem.inner_text() or ""
                     elem_title = slot_elem.get_attribute("title") or ""
                     
-                    # Strategy 1: Match by time_slot (HH:MM format)
-                    has_time = time_slot in elem_text or time_slot.split("-")[0] in elem_text
+                    # The slot HTML contains the time info - extract from onclick or other attributes
+                    onclick = slot_elem.get_attribute("onclick") or ""
+                    elem_html = slot_elem.inner_html() or ""
                     
-                    # Strategy 2: Match by court ID/name
+                    # Parse time from onclick: "mdsende('proc_straks.asp','opret','12-12-2025;2;9;20:00;21:00;0;','','')"
+                    # Format: date;region;court_num;start_time;end_time;...
+                    has_time = time_slot in elem_html or time_slot.split("-")[0] in onclick
+                    
+                    # Match by court ID/name
                     court_match = (
-                        court_id in elem_text or 
-                        str(court_id).replace("Court", "") in elem_text or
+                        str(court_id) in elem_html or 
+                        str(court_id).replace("Court", "") in elem_html or
                         court_id in elem_title or
-                        str(court_id).replace("Court", "") in elem_title
+                        str(court_id).replace("Court", "") in elem_title or
+                        str(court_id).replace("Court", "") in onclick
                     )
                     
-                    # If both match, or if we found the time and court info
+                    # If both match, click it
                     if has_time and court_match:
-                        self.logger.info("Found matching slot with text: '%s'", elem_text[:100])
+                        self.logger.info("Found matching slot in HTML/onclick")
                         slot_elem.click()
                         page.wait_for_load_state("networkidle", timeout=5000)
                         slot_clicked = True
@@ -675,7 +682,7 @@ class PlaywrightBookingClient:
                     
                     # Fallback: if no court_id specified, just match by time
                     if has_time and not court_match and not court_id:
-                        self.logger.info("Found slot by time only: '%s'", elem_text[:100])
+                        self.logger.info("Found slot by time only")
                         slot_elem.click()
                         page.wait_for_load_state("networkidle", timeout=5000)
                         slot_clicked = True
