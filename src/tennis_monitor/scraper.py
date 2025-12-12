@@ -635,25 +635,59 @@ class PlaywrightBookingClient:
             # STEP 1: Find and click the available slot matching our court + time
             self.logger.info("STEP 1: Finding and clicking available slot for %s at %s", court_id, time_slot)
             slot_elements = page.query_selector_all(self.selector_available_slot)
+            self.logger.info("Found %d slot elements on page", len(slot_elements))
             
             slot_clicked = False
+            
+            # Debug: Print first few slots to understand structure
+            for idx, elem in enumerate(slot_elements[:3]):
+                try:
+                    elem_text = elem.inner_text()
+                    elem_title = elem.get_attribute("title") or ""
+                    self.logger.debug("Slot %d text: '%s' | title: '%s'", idx, elem_text, elem_title)
+                except Exception as e:
+                    self.logger.debug("Error reading slot %d: %s", idx, e)
+            
+            # Try multiple matching strategies
             for slot_elem in slot_elements:
                 try:
-                    elem_text = slot_elem.inner_text()
+                    elem_text = slot_elem.inner_text() or ""
+                    elem_title = slot_elem.get_attribute("title") or ""
                     
-                    # Match by court ID or name and time
-                    if (court_id in elem_text or str(court_id).replace("Court", "") in elem_text) and time_slot in elem_text:
-                        self.logger.info("Found matching slot, clicking...")
+                    # Strategy 1: Match by time_slot (HH:MM format)
+                    has_time = time_slot in elem_text or time_slot.split("-")[0] in elem_text
+                    
+                    # Strategy 2: Match by court ID/name
+                    court_match = (
+                        court_id in elem_text or 
+                        str(court_id).replace("Court", "") in elem_text or
+                        court_id in elem_title or
+                        str(court_id).replace("Court", "") in elem_title
+                    )
+                    
+                    # If both match, or if we found the time and court info
+                    if has_time and court_match:
+                        self.logger.info("Found matching slot with text: '%s'", elem_text[:100])
                         slot_elem.click()
                         page.wait_for_load_state("networkidle", timeout=5000)
                         slot_clicked = True
                         break
+                    
+                    # Fallback: if no court_id specified, just match by time
+                    if has_time and not court_match and not court_id:
+                        self.logger.info("Found slot by time only: '%s'", elem_text[:100])
+                        slot_elem.click()
+                        page.wait_for_load_state("networkidle", timeout=5000)
+                        slot_clicked = True
+                        break
+                        
                 except Exception as e:
                     self.logger.debug("Error checking slot: %s", e)
                     continue
             
             if not slot_clicked:
                 self.logger.warning("Could not find matching slot to click")
+                self.logger.warning("Attempted to match: court_id='%s', time_slot='%s'", court_id, time_slot)
                 return False
             
             # STEP 2: Select co-player
